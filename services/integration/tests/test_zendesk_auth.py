@@ -64,3 +64,8 @@ def test_revoked_token_is_replaced_and_the_call_retried():
 def test_api_token_mode_still_works_for_older_accounts():
     auth = ZendeskAuth("acme", email="ops@acme.example", api_token="t")
     assert auth.mode == "api_token"
+
+
+def test_missing_credentials_do_not_stop_the_service():
+    auth = ZendeskAuth("acme")
+    assert auth.mode == "not_configured"

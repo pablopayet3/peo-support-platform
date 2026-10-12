@@ -83,8 +83,12 @@ async def unavailable(request: Request, exc: Unavailable):
 
 
 @app.get("/healthz", tags=["Health"])
-def healthz():
-    return {"status": "ok", "checks_enabled": get_settings().checks_enabled}
+def healthz(request: Request):
+    """Liveness plus configuration status. Never returns a secret, only whether it is set."""
+    s = get_settings()
+    return {"status": "ok", "checks_enabled": s.checks_enabled,
+            "zendesk_auth": request.app.state.zendesk.auth.mode,
+            "core_key_set": bool(s.core_api_key), "caller_keys": len(s.keys())}
 
 
 class ContactIn(BaseModel):

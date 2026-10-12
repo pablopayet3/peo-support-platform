@@ -6,4 +6,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY intake_agent ./intake_agent
 RUN useradd --create-home appuser
 USER appuser
-CMD ["sh", "-c", "uvicorn intake_agent.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers"]
+CMD ["sh", "-c", "uvicorn intake_agent.main:app --host :: --port ${PORT:-8000} --proxy-headers"]

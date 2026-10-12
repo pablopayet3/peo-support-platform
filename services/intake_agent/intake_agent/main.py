@@ -61,7 +61,9 @@ def verify(body: bytes, sig: str | None, ts: str | None, secret: str, max_age_s:
 
 @app.get("/healthz")
 def healthz():
-    return {"status": "ok", "extractor": app.state.extractor.name}
+    s = get_settings()
+    return {"status": "ok", "extractor": app.state.extractor.name, "zendesk_auth": app.state.zd.auth.mode,
+            "integration_key_set": bool(s.integration_api_key)}
 
 
 @app.post("/v1/webhooks/zendesk", status_code=202)

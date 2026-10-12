@@ -17,8 +17,9 @@ class ZendeskAuth(httpx.Auth):
                  email: str = "", api_token: str = "", token_lifetime_s: int = 3600,
                  transport: httpx.AsyncBaseTransport | None = None):
         self._oauth = bool(client_id and client_secret)
-        if not self._oauth and not (email and api_token):
-            raise ValueError("Zendesk credentials missing: set the OAuth client ID and secret")
+        # Missing credentials must not stop the service from starting (health checks, other endpoints);
+        # every Zendesk call fails clearly instead, and /healthz reports it.
+        self.configured = self._oauth or bool(email and api_token)
         self._url = f"https://{subdomain}.zendesk.com/oauth/tokens"
         self._form = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret,
                       "expires_in": str(token_lifetime_s)}
@@ -31,6 +32,8 @@ class ZendeskAuth(httpx.Auth):
 
     @property
     def mode(self) -> str:
+        if not self.configured:
+            return "not_configured"
         return "oauth_client_credentials" if self._oauth else "api_token"
 
     async def _access_token(self, force: bool = False) -> str:
@@ -47,6 +50,8 @@ class ZendeskAuth(httpx.Auth):
             return self._token
 
     async def async_auth_flow(self, request: httpx.Request):
+        if not self.configured:
+            raise RuntimeError("Zendesk credentials are not configured")
         if not self._oauth:
             request.headers["Authorization"] = f"Basic {self._basic}"
             yield request
