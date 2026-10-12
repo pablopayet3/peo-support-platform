@@ -43,6 +43,12 @@ log.propagate = False
 async def lifespan(app: FastAPI):
     app.state.core = CoreClient()
     app.state.zendesk = ZendeskClient()
+    s = get_settings()
+    # Configuration status at startup, never the values themselves
+    log.info("startup config", extra={"extra_fields": {
+        "zendesk_auth": app.state.zendesk.auth.mode, "core_key_set": bool(s.core_api_key),
+        "caller_keys": len(s.keys()), "webhook_secret_source": "zendesk_api" if s.zendesk_webhook_id else (
+            "variable" if s.zendesk_webhook_secret else "missing"), "field_ids": sorted(s.field_ids())}})
     yield
     await app.state.core.aclose()
     await app.state.zendesk.aclose()

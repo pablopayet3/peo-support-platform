@@ -42,6 +42,12 @@ def build_extractor():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.zd, app.state.integ, app.state.extractor = Zendesk(), Integration(), build_extractor()
+    s = get_settings()
+    # Configuration status at startup, never the values themselves
+    log.info("startup config", extra={"extra_fields": {
+        "extractor": app.state.extractor.name, "model": s.model, "zendesk_auth": app.state.zd.auth.mode,
+        "integration_key_set": bool(s.integration_api_key), "webhook_secret_source": "zendesk_api" if
+        s.zendesk_webhook_id else ("variable" if s.zendesk_webhook_secret else "missing")}})
     yield
 
 

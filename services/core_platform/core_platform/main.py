@@ -42,6 +42,11 @@ async def lifespan(app: FastAPI):
         with SessionLocal() as db:
             if seed(db):
                 log.info("seeded sample data")
+    s = get_settings()
+    # Configuration status at startup, never the values themselves
+    log.info("startup config", extra={"extra_fields": {
+        "database": s.sqlalchemy_url.split(":", 1)[0], "caller_keys": len(s.keys()),
+        "admin_public_demo": s.admin_public_demo}})
     yield
 
 
