@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     #        "enrollment_outcome": 111, "enrollment_id": 222}
     zendesk_field_ids: str = "{}"
     benefits_ops_group_id: int = 0
+    # The sidebar app installation this service keeps configured (its settings, including its key).
+    zendesk_app_installation_id: str = ""
+    # This service's public URL, as the sidebar app reaches it. Railway sets RAILWAY_PUBLIC_DOMAIN.
+    public_base_url: str = ""
 
     # A switch that turns the checks off without touching Zendesk or the AI tools.
     checks_enabled: bool = True

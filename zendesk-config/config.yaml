@@ -70,7 +70,7 @@ triggers:
       - { field: "{field:Life event type}", operator: present }
       - { field: "{field:AI intake result}", operator: not_present }
       - { field: current_tags, operator: not_includes, value: qle_check_requested }
-      - { field: status_category, operator: less_than, value: solved }
+      - { field: status, operator: less_than, value: solved }
     actions:
       - { field: current_tags, value: qle_check_requested }
       - { field: notification_webhook, value: ["{webhook:Integration service - checks}", '{"ticket_id": "{{ticket.id}}"}'] }

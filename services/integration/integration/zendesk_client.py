@@ -101,3 +101,7 @@ class ZendeskClient:
 
     async def remove_tags(self, ticket_id: int, tags: list[str]) -> None:
         await self._request("DELETE", f"/api/v2/tickets/{ticket_id}/tags.json", json={"tags": tags})
+
+    async def update_app_settings(self, installation_id: str, settings: dict) -> None:
+        await self._request("PUT", f"/api/v2/apps/installations/{installation_id}.json",
+                            json={"settings": settings, "enabled": True})

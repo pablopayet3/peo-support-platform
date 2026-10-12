@@ -15,7 +15,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, R
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
-from . import workflows
+from . import provisioning, workflows
 from .checks import CheckRequest, Contact, run_qle_check
 from .config import get_settings
 from .core_client import Conflict, CoreClient, NotFound
@@ -49,6 +49,8 @@ async def lifespan(app: FastAPI):
         "zendesk_auth": app.state.zendesk.auth.mode, "core_key_set": bool(s.core_api_key),
         "caller_keys": len(s.keys()), "webhook_secret_source": "zendesk_api" if s.zendesk_webhook_id else (
             "variable" if s.zendesk_webhook_secret else "missing"), "field_ids": sorted(s.field_ids())}})
+    log.info("sidebar app settings", extra={"extra_fields": {
+        "result": await provisioning.sync_sidebar_app(app.state.zendesk)}})
     yield
     await app.state.core.aclose()
     await app.state.zendesk.aclose()

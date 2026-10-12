@@ -14,7 +14,7 @@ os.environ.update({
                                               "scopes": ["identity:read", "benefits:read", "enrollments:write"]}}),
     "INT_API_KEYS": json.dumps({
         "agent-key": {"client": "intake-agent", "scopes": ["checks:run"]},
-        "sidebar-key": {"client": "sidebar-app", "scopes": ["checks:run", "employees:read", "enrollments:approve"]},
+        "sidebar-key": {"client": "zendesk-sidebar-app", "scopes": ["checks:run", "employees:read", "enrollments:approve"]},
     }),
     "INT_CORE_BASE_URL": "http://core.internal",
     "INT_CORE_API_KEY": "core-key",
@@ -55,6 +55,7 @@ class FakeZendesk:
         self.updates: list[tuple[int, dict]] = []
         self.tags: dict[int, set] = {}
         self.signing_secret, self.secret_reads = "whsec-from-zendesk", 0
+        self.app_settings_updates: list[dict] = []
 
     def add_ticket(self, tid: int, requester_id: int, fields: dict[int, object]):
         self.tickets[tid] = {"id": tid, "requester_id": requester_id,
@@ -78,6 +79,9 @@ class FakeZendesk:
             for f in body.get("custom_fields", []):
                 t["custom_fields"] = [x for x in t["custom_fields"] if x["id"] != f["id"]] + [f]
             return httpx.Response(200, json={"ticket": t})
+        if parts[:4] == ["api", "v2", "apps", "installations"]:
+            self.app_settings_updates.append(json.loads(request.content))
+            return httpx.Response(200, json={"id": 1})
         if parts[:3] == ["api", "v2", "webhooks"] and parts[-1] == "signing_secret":
             self.secret_reads += 1
             return httpx.Response(200, json={"signing_secret": {"algorithm": "SHA256", "secret": self.signing_secret}})
