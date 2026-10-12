@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Billing{% endblock %}{% block body %}
+<h1>Billing</h1><p class="sub">Invoices and the payments taken for each.</p>
+<table><tr><th>Invoice</th><th>Company</th><th>Period</th><th>Amount</th><th>Payments</th></tr>
+{% for i in invoices %}{% set ps = payments[i.id] %}<tr><td class="mono">{{ i.id }}</td><td>{{ i.company_id }}</td><td>{{ i.period }}</td>
+<td>${{ '{:,.2f}'.format(i.amount) }}</td><td>{% for p in ps %}<span class="mono">{{ p.id }}</span> ${{ '{:,.2f}'.format(p.amount) }} on {{ p.paid_on }}<br>{% endfor %}
+{% if ps|length > 1 %}<span class="badge b-double">charged {{ ps|length }} times</span>{% endif %}</td></tr>{% endfor %}</table>
+{% endblock %}

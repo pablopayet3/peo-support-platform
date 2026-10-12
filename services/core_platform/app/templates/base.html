@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+{% if refresh %}<meta http-equiv="refresh" content="{{ refresh }}">{% endif %}
+<title>{% block title %}Core Platform{% endblock %} · Northwind PEO</title>
+<link rel="stylesheet" href="/static/admin.css"></head>
+<body>
+<header><span class="brand">Northwind PEO · Core Platform</span><span class="tag">Internal · Engineering</span>
+<nav>
+<a href="/admin" class="{{ 'on' if nav=='overview' }}">Overview</a>
+<a href="/admin/employees" class="{{ 'on' if nav=='employees' }}">Employees</a>
+<a href="/admin/enrollments" class="{{ 'on' if nav=='enrollments' }}">Enrollments</a>
+<a href="/admin/billing" class="{{ 'on' if nav=='billing' }}">Billing</a>
+<a href="/admin/audit" class="{{ 'on' if nav=='audit' }}">Audit log</a>
+</nav></header>
+<div class="demo">Demo system. Northwind PEO and every person, company and plan here are fictional.</div>
+<main>{% block body %}{% endblock %}</main>
+</body></html>

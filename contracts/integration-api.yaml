@@ -1,0 +1,307 @@
+openapi: 3.1.0
+info:
+  title: Northwind PEO - Support Integration API
+  version: 1.0.0
+  summary: The one API that support tools (AI agents, Zendesk, the sidebar app) call.
+  description: |
+    Owned by Support Operations. It sits between the support tools and the core platform,
+    which Engineering owns. Callers never reach the core platform directly.
+
+    Northwind PEO is a fictional company. All data is sample data.
+
+    Error handling is part of the contract:
+    - A check that ran and failed is a normal answer (200, `failed_check` set).
+    - A check that could not run is `503`. Callers end the intake as Incomplete and still route the ticket.
+servers:
+  - url: https://integration.example.northwind-peo.test
+security:
+  - bearerAuth: []
+tags:
+  - name: Checks
+  - name: Employees
+  - name: Enrollments
+  - name: Webhooks
+  - name: Health
+paths:
+  /v1/qle/check:
+    post:
+      tags: [Checks]
+      operationId: checkLifeEvent
+      summary: Run the intake checks (steps 2 to 4) for a qualifying life event
+      description: |
+        One call runs, in order, the identity check, the active-plan check and the enrollment-window check.
+        The answer uses the same values as the Zendesk field "AI intake result", so the caller writes it
+        to the ticket without translating it.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QleCheckRequest' }
+            examples:
+              employee:
+                value:
+                  requester: { email: maria.lopez@acmebakery.example }
+                  event_type: newborn
+                  event_date: '2026-10-06'
+              admin_for_employee:
+                value:
+                  requester: { email: owner@acmebakery.example }
+                  employee: { email: maria.lopez@acmebakery.example }
+                  event_type: newborn
+                  event_date: '2026-10-06'
+      responses:
+        '200':
+          description: Every check ran. Read `failed_check` for the outcome.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QleCheckResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/employees/{employee_id}/summary:
+    get:
+      tags: [Employees]
+      operationId: getEmployeeSummary
+      summary: What the specialist needs to see in the ticket sidebar
+      description: No Social Security number, salary or health detail is ever returned.
+      parameters:
+        - $ref: '#/components/parameters/EmployeeId'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: The summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmployeeSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/enrollments:
+    post:
+      tags: [Enrollments]
+      operationId: approveEnrollment
+      summary: Record a specialist's approval and create the pending enrollment
+      description: |
+        Called by the sidebar app after the specialist confirms. The service checks with Zendesk that the
+        approver belongs to Benefits Ops, creates at most one enrollment per ticket, then writes the outcome,
+        the Enrollment ID and an internal note to the ticket.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApproveEnrollmentRequest' }
+      responses:
+        '201':
+          description: Enrollment created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnrollmentResult' }
+        '200':
+          description: Already created for this ticket. The same enrollment is returned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnrollmentResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: The approver is not in the Benefits Ops group
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: The checks no longer pass (for example the window has closed)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/webhooks/zendesk:
+    post:
+      tags: [Webhooks]
+      operationId: zendeskWebhook
+      summary: Called by Zendesk trigger 45-CHECK
+      description: |
+        Signed by Zendesk. The service answers within milliseconds and does the work afterwards,
+        because Zendesk waits only 12 seconds before retrying.
+      security: []
+      parameters:
+        - in: header
+          name: X-Zendesk-Webhook-Signature
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-Zendesk-Webhook-Signature-Timestamp
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ZendeskWebhook' }
+      responses:
+        '202': { description: Accepted. The checks run in the background. }
+        '401': { description: Missing or invalid signature }
+  /healthz:
+    get:
+      tags: [Health]
+      security: []
+      operationId: health
+      responses:
+        '200': { description: Up }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: One key per caller (AI agent, sidebar app), kept in the secrets manager.
+  parameters:
+    RequestId:
+      in: header
+      name: X-Request-Id
+      required: false
+      description: Correlation ID. Echoed back and passed to every downstream call.
+      schema: { type: string }
+    EmployeeId:
+      in: path
+      name: employee_id
+      required: true
+      schema: { type: string, pattern: '^E-[0-9]{4,}$' }
+  responses:
+    BadRequest:
+      description: The request is invalid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Missing or invalid key
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unavailable:
+      description: A system did not answer in time. The intake ends as Incomplete.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    EventType:
+      type: string
+      enum: [newborn, adoption, marriage, loss_of_coverage]
+    Contact:
+      type: object
+      description: At least one of email or phone.
+      properties:
+        email: { type: string, format: email }
+        phone: { type: string, description: E.164 format }
+      anyOf:
+        - required: [email]
+        - required: [phone]
+    QleCheckRequest:
+      type: object
+      required: [requester, event_type, event_date]
+      properties:
+        requester: { $ref: '#/components/schemas/Contact' }
+        employee:
+          $ref: '#/components/schemas/Contact'
+          description: Only when an admin writes for an employee.
+        event_type: { $ref: '#/components/schemas/EventType' }
+        event_date: { type: string, format: date }
+    QleCheckResult:
+      type: object
+      required: [failed_check, ai_intake_result, checks]
+      properties:
+        failed_check:
+          type: string
+          enum: [none, identity, no_plan, window_closed]
+        ai_intake_result:
+          type: string
+          description: The value to write to the Zendesk field AI intake result.
+          enum: [ai_intake_complete, ai_fail_identity, ai_fail_no_plan, ai_fail_window]
+        eligible: { type: boolean }
+        employee_id: { type: [string, 'null'] }
+        company_name: { type: [string, 'null'] }
+        deadline:
+          type: [string, 'null']
+          format: date-time
+          description: 11:59 pm on the last day, in the company's time zone, as UTC.
+        checks:
+          type: array
+          items:
+            type: object
+            required: [name, passed]
+            properties:
+              name: { type: string, enum: [identity, active_plan, enrollment_window] }
+              passed: { type: boolean }
+              detail: { type: string }
+    EmployeeSummary:
+      type: object
+      required: [employee_id, name, company_name, role]
+      properties:
+        employee_id: { type: string }
+        name: { type: string }
+        company_name: { type: string }
+        role: { type: string, enum: [employee, admin] }
+        medical_plan:
+          type: [object, 'null']
+          properties:
+            name: { type: string }
+            carrier: { type: string }
+            coverage_level: { type: string }
+        dependents:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              relationship: { type: string }
+              status: { type: string }
+        open_life_events:
+          type: array
+          items:
+            type: object
+            properties:
+              enrollment_id: { type: string }
+              event_type: { $ref: '#/components/schemas/EventType' }
+              status: { type: string }
+    ApproveEnrollmentRequest:
+      type: object
+      required: [ticket_id, employee_id, event_type, event_date, dependent, approver_zendesk_user_id]
+      properties:
+        ticket_id: { type: integer }
+        employee_id: { type: string }
+        event_type: { $ref: '#/components/schemas/EventType' }
+        event_date: { type: string, format: date }
+        dependent:
+          type: object
+          required: [first_name, last_name, date_of_birth]
+          properties:
+            first_name: { type: string }
+            last_name: { type: string }
+            date_of_birth: { type: string, format: date }
+        approver_zendesk_user_id: { type: integer }
+    EnrollmentResult:
+      type: object
+      required: [enrollment_id, status]
+      properties:
+        enrollment_id: { type: string }
+        status: { type: string, enum: [pending_carrier, confirmed, rejected] }
+        ticket_updated: { type: boolean }
+    ZendeskWebhook:
+      type: object
+      required: [ticket_id]
+      properties:
+        ticket_id: { type: integer }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        detail: { type: string }
+        request_id: { type: string }

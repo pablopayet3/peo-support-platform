@@ -1,0 +1,264 @@
+openapi: 3.1.0
+info:
+  title: Northwind PEO - Core Platform API (internal)
+  version: 1.0.0
+  summary: Identity, benefits and billing. Owned by Engineering.
+  description: |
+    The system of record. Only internal services call it, each with its own key and scopes.
+    In this demo it stands in for the systems Engineering owns at a real PEO.
+
+    Northwind PEO is a fictional company. All data is sample data.
+servers:
+  - url: https://core.example.northwind-peo.test
+security:
+  - bearerAuth: []
+paths:
+  /v1/people/lookup:
+    get:
+      operationId: lookupPerson
+      summary: Find a person by the email or phone they contacted us from
+      description: Scope identity:read. Returns every company the person belongs to, with their role in each.
+      parameters:
+        - { in: query, name: email, schema: { type: string } }
+        - { in: query, name: phone, schema: { type: string } }
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Person' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/authorizations/check:
+    post:
+      operationId: checkAuthorization
+      summary: Can this person act for this employee?
+      description: Scope identity:read. True for the employee themself, and for an admin of the same company.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actor_person_id, employee_id]
+              properties:
+                actor_person_id: { type: string }
+                employee_id: { type: string }
+      responses:
+        '200':
+          description: Answer
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [allowed]
+                properties:
+                  allowed: { type: boolean }
+                  reason: { type: string }
+  /v1/employees/{employee_id}:
+    get:
+      operationId: getEmployee
+      summary: Employee profile, without sensitive data
+      description: Scope identity:read.
+      parameters:
+        - $ref: '#/components/parameters/EmployeeId'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Employee' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/employees/{employee_id}/coverage:
+    get:
+      operationId: getCoverage
+      summary: The employee's active medical coverage and dependents
+      description: Scope benefits:read.
+      parameters:
+        - $ref: '#/components/parameters/EmployeeId'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Coverage
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Coverage' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/qle/evaluate:
+    post:
+      operationId: evaluateQle
+      summary: Is the enrollment window open, and when does it close?
+      description: Scope benefits:read. The deadline is 11:59 pm on the last day, in the company's time zone.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_id, event_type, event_date]
+              properties:
+                employee_id: { type: string }
+                event_type: { type: string, enum: [newborn, adoption, marriage, loss_of_coverage] }
+                event_date: { type: string, format: date }
+      responses:
+        '200':
+          description: Evaluation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [window_open, deadline, window_days]
+                properties:
+                  window_open: { type: boolean }
+                  window_days: { type: integer }
+                  deadline: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/enrollments:
+    post:
+      operationId: createEnrollment
+      summary: Create a pending enrollment after a person approved it
+      description: |
+        Scope enrollments:write. Requires an Idempotency-Key header. The same key always returns the same
+        enrollment, so a retry or a double click never creates two.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, maxLength: 128 }
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EnrollmentCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Enrollment' }
+        '200':
+          description: Already created with this key
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Enrollment' }
+        '409':
+          description: Not allowed, for example the window has closed or the key was used with different data
+  /v1/enrollments/{enrollment_id}:
+    get:
+      operationId: getEnrollment
+      summary: One enrollment
+      description: Scope benefits:read.
+      parameters:
+        - { in: path, name: enrollment_id, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Enrollment' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  parameters:
+    RequestId:
+      in: header
+      name: X-Request-Id
+      required: false
+      schema: { type: string }
+    EmployeeId:
+      in: path
+      name: employee_id
+      required: true
+      schema: { type: string }
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+  schemas:
+    Membership:
+      type: object
+      properties:
+        employee_id: { type: string }
+        company_id: { type: string }
+        company_name: { type: string }
+        role: { type: string, enum: [employee, admin] }
+        status: { type: string, enum: [active, terminated] }
+    Person:
+      type: object
+      properties:
+        person_id: { type: string }
+        name: { type: string }
+        memberships:
+          type: array
+          items: { $ref: '#/components/schemas/Membership' }
+    Employee:
+      type: object
+      properties:
+        employee_id: { type: string }
+        person_id: { type: string }
+        name: { type: string }
+        company_id: { type: string }
+        company_name: { type: string }
+        company_timezone: { type: string }
+        role: { type: string }
+        status: { type: string }
+    Coverage:
+      type: object
+      properties:
+        employee_id: { type: string }
+        medical:
+          type: [object, 'null']
+          properties:
+            plan_id: { type: string }
+            plan_name: { type: string }
+            carrier: { type: string }
+            coverage_level: { type: string }
+            status: { type: string }
+        dependents:
+          type: array
+          items:
+            type: object
+            properties:
+              dependent_id: { type: string }
+              name: { type: string }
+              relationship: { type: string }
+              status: { type: string }
+    EnrollmentCreate:
+      type: object
+      required: [employee_id, event_type, event_date, dependent, approved_by, source_ref]
+      properties:
+        employee_id: { type: string }
+        event_type: { type: string }
+        event_date: { type: string, format: date }
+        dependent:
+          type: object
+          required: [first_name, last_name, date_of_birth]
+          properties:
+            first_name: { type: string }
+            last_name: { type: string }
+            date_of_birth: { type: string, format: date }
+        approved_by: { type: string, description: Who approved, for example "zendesk:123456" }
+        source_ref: { type: string, description: Where the request came from, for example "zendesk-ticket:42" }
+    Enrollment:
+      type: object
+      properties:
+        enrollment_id: { type: string }
+        employee_id: { type: string }
+        event_type: { type: string }
+        event_date: { type: string, format: date }
+        status: { type: string, enum: [pending_carrier, confirmed, rejected] }
+        approved_by: { type: string }
+        approved_at: { type: string, format: date-time }
+        source_ref: { type: string }

@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}{{ e.person.name }}{% endblock %}{% block body %}
+<h1>{{ e.person.name }} <span class="mono">{{ e.id }}</span></h1><p class="sub">{{ e.company.name }} · {{ e.role }} · {{ e.status }}</p>
+<div class="grid2"><div class="kv">
+<div><span>Email</span><b class="mono">{{ e.person.email }}</b></div><div><span>Phone</span><b class="mono">{{ e.person.phone }}</b></div>
+<div><span>Company time zone</span><b>{{ e.company.timezone }}</b></div>
+<div><span>Other memberships</span><b>{% for m in e.person.memberships if m.id != e.id %}<a href="/admin/employees/{{ m.id }}">{{ m.company.name }} ({{ m.role }})</a> {% else %}—{% endfor %}</b></div></div>
+<div class="kv">{% for c in e.coverages %}<div><span>{{ c.plan.kind|capitalize }}</span><b>{{ c.plan.name }} · {{ c.plan.carrier }}</b></div>
+<div><span>Coverage level</span><b>{{ c.level|replace('_',' ') }} <span class="badge b-{{ c.status }}">{{ c.status }}</span></b></div>
+{% else %}<div><span>Medical</span><b>No active plan</b></div>{% endfor %}</div></div>
+<h2>Dependents</h2>
+<table><tr><th>ID</th><th>Name</th><th>Relationship</th><th>Date of birth</th><th>Status</th></tr>
+{% for d in e.dependents %}<tr><td class="mono">{{ d.id }}</td><td>{{ d.name }}</td><td>{{ d.relationship_to_employee }}</td>
+<td>{{ d.date_of_birth.strftime('%b %-d, %Y') if d.date_of_birth }}</td><td><span class="badge b-{{ d.status }}">{{ d.status|replace('_',' ') }}</span></td></tr>
+{% else %}<tr><td colspan="5" class="empty">No dependents</td></tr>{% endfor %}</table>
+<h2>Enrollments</h2>{% with rows=enrollments %}{% include "_enrollments_table.html" %}{% endwith %}
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Overview{% endblock %}{% block body %}
+<h1>Overview</h1><p class="sub">The system of record for identity, benefits and billing.</p>
+<div class="cards">
+<div class="card"><div class="n">{{ stats.companies }}</div><div class="l">Client companies</div></div>
+<div class="card"><div class="n">{{ stats.employees }}</div><div class="l">Active employees</div></div>
+<div class="card"><div class="n">{{ stats.pending }}</div><div class="l">Enrollments pending with the carrier</div></div>
+<div class="card"><div class="n">{{ stats.audit }}</div><div class="l">Audit events</div></div>
+</div>
+<h2>Latest enrollments</h2>{% with rows=enrollments %}{% include "_enrollments_table.html" %}{% endwith %}
+<h2>Latest audit events</h2>
+<table><tr><th>When (UTC)</th><th>Actor</th><th>Action</th><th>Entity</th><th>Request ID</th></tr>
+{% for ev in events %}<tr><td class="mono">{{ ev.at.strftime('%Y-%m-%d %H:%M:%S') if ev.at }}</td><td class="mono">{{ ev.actor }}</td><td class="mono">{{ ev.action }}</td>
+<td class="mono">{{ ev.entity }} {{ ev.entity_id }}</td><td class="mono">{{ (ev.request_id or '')[:12] }}</td></tr>
+{% else %}<tr><td colspan="5" class="empty">No events yet</td></tr>{% endfor %}</table>
+{% endblock %}

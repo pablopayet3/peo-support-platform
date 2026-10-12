@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Audit log{% endblock %}{% block body %}
+<h1>Audit log</h1><p class="sub">Append-only. Every lookup and every change, with the caller and the request ID that links it to the other systems.</p>
+<table><tr><th>#</th><th>When (UTC)</th><th>Actor</th><th>Action</th><th>Entity</th><th>Request ID</th><th>Details</th></tr>
+{% for ev in rows %}<tr><td class="mono">{{ ev.id }}</td><td class="mono">{{ ev.at.strftime('%Y-%m-%d %H:%M:%S') if ev.at }}</td><td class="mono">{{ ev.actor }}</td>
+<td class="mono">{{ ev.action }}</td><td class="mono">{{ ev.entity }} {{ ev.entity_id }}</td><td class="mono">{{ ev.request_id or '' }}</td>
+<td class="mono">{{ ev.details|tojson }}</td></tr>{% else %}<tr><td colspan="7" class="empty">No events yet</td></tr>{% endfor %}</table>
+{% endblock %}

@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Employees{% endblock %}{% block body %}
+<h1>Employees</h1><p class="sub">One row per person per company. A person can belong to several companies.</p>
+<table><tr><th>ID</th><th>Name</th><th>Company</th><th>Role</th><th>Status</th><th>Medical plan</th><th>Dependents</th></tr>
+{% for e in rows %}{% set cov = e.coverages|selectattr('status','equalto','active')|list %}
+<tr><td class="mono"><a href="/admin/employees/{{ e.id }}">{{ e.id }}</a></td><td>{{ e.person.name }}</td><td>{{ e.company.name }}</td>
+<td><span class="badge b-{{ e.role }}">{{ e.role }}</span></td><td><span class="badge b-{{ e.status }}">{{ e.status }}</span></td>
+<td>{{ cov[0].plan.name if cov else '—' }}</td><td>{{ e.dependents|length }}</td></tr>{% endfor %}</table>
+{% endblock %}

@@ -1,0 +1,8 @@
+<table><tr><th>Enrollment</th><th>Employee</th><th>Event</th><th>Status</th><th>Approved by</th><th>Approved at (UTC)</th><th>Source</th></tr>
+{% for en in rows %}<tr class="{{ 'new' if loop.first }}"><td class="mono">{{ en.id }}</td>
+<td><a href="/admin/employees/{{ en.employee_id }}">{{ en.employee.person.name }}</a> <span class="mono">{{ en.employee_id }}</span></td>
+<td>{{ en.event_type|replace('_',' ') }}, {{ en.event_date.strftime('%b %-d, %Y') }}{% if en.dependent %}<br><span class="sub">{{ en.dependent.name }}</span>{% endif %}</td>
+<td><span class="badge b-{{ en.status }}">{{ en.status|replace('_',' ') }}</span></td>
+<td class="mono">{{ en.approved_by }}</td><td class="mono">{{ en.approved_at.strftime('%Y-%m-%d %H:%M') if en.approved_at }}</td>
+<td class="mono">{{ en.source_ref }}</td></tr>
+{% else %}<tr><td colspan="7" class="empty">No enrollments yet</td></tr>{% endfor %}</table>
