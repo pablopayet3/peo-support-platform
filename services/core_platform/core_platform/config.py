@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # Public read-only demo: the admin screens open without a password. Only for fictional data.
     admin_public_demo: bool = False
     seed_on_start: bool = True
+    # Demo only: give sample people a real inbox (JSON {"P-1001": "you+maria@example.com"}), so a live demo
+    # can email in as Maria and receive the agent's replies. Kept out of the repository.
+    demo_email_overrides: str = "{}"
     # For demos and tests only: pretend today is this date (YYYY-MM-DD).
     frozen_today: str | None = None
     log_level: str = "INFO"

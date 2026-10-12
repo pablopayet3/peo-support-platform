@@ -69,3 +69,15 @@ def seed(db: Session) -> bool:
                 Payment(id="PAY-1002", invoice_id="INV-2026-10-001", amount=8450.00, paid_on=date(2026, 10, 1))])
     db.commit()
     return True
+
+
+def apply_demo_email_overrides(db: Session, overrides: dict[str, str]) -> int:
+    """Point sample people at real demo inboxes. Idempotent; returns how many changed."""
+    changed = 0
+    for person_id, email in overrides.items():
+        person = db.get(Person, person_id)
+        if person is not None and person.email != email:
+            person.email = email
+            changed += 1
+    db.commit()
+    return changed

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import get_settings
 from .db import Base, SessionLocal, engine
 from .routers import admin, benefits, identity
-from .seed import seed
+from .seed import apply_demo_email_overrides, seed
 
 
 class JsonFormatter(logging.Formatter):
@@ -43,6 +43,11 @@ async def lifespan(app: FastAPI):
             if seed(db):
                 log.info("seeded sample data")
     s = get_settings()
+    overrides = json.loads(s.demo_email_overrides or "{}")
+    if overrides:
+        with SessionLocal() as db:
+            log.info("demo email overrides", extra={"extra_fields": {
+                "people": sorted(overrides), "changed": apply_demo_email_overrides(db, overrides)}})
     # Configuration status at startup, never the values themselves
     log.info("startup config", extra={"extra_fields": {
         "database": s.sqlalchemy_url.split(":", 1)[0], "caller_keys": len(s.keys()),

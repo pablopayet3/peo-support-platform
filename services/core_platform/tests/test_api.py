@@ -108,3 +108,13 @@ def test_postgres_url_gets_the_driver():
     from core_platform.config import Settings
     assert Settings(database_url="postgresql://u:p@h:5432/db").sqlalchemy_url == "postgresql+psycopg://u:p@h:5432/db"
     assert Settings(database_url="postgres://u:p@h/db").sqlalchemy_url == "postgresql+psycopg://u:p@h/db"
+
+
+def test_demo_email_override_points_a_person_at_a_real_inbox(client):
+    from core_platform.db import SessionLocal
+    from core_platform.models import Person
+    from core_platform.seed import apply_demo_email_overrides
+    with SessionLocal() as db:
+        assert apply_demo_email_overrides(db, {"P-1003": "demo+priya@example.com"}) == 1
+        assert apply_demo_email_overrides(db, {"P-1003": "demo+priya@example.com"}) == 0
+        assert db.get(Person, "P-1003").email == "demo+priya@example.com"
