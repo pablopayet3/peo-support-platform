@@ -87,6 +87,21 @@ async function load() {
   await render();
 }
 
+/* The client company as Sales and the CSM see it (Salesforce). Context only: never blocks anything. */
+function accountBox(acc) {
+  if (!acc || acc.status === 'not_configured' || acc.status === 'not_found') return '';
+  if (acc.status !== 'ok') return '<p class="muted">Salesforce is not answering, so account details are hidden.</p>';
+  const r = acc.renewal;
+  const money = (n) => (n == null ? '' : `$${Number(n).toLocaleString('en-US')}`);
+  const renewal = r ? `<div class="row"><span>Renewal</span><span class="badge ${r.days_away < 90 ? 'warn' : 'info'}">${esc(r.date)} · ${money(r.amount)}</span></div>` : '';
+  return `<h3>Account <span class="src">Salesforce</span></h3><div class="card">
+    <div class="row"><span>Client</span><b>${esc(acc.name)}</b></div>
+    <div class="row"><span>Account owner</span><span>${esc(acc.owner || '-')}</span></div>
+    <div class="row"><span>Size</span><span>${esc(acc.employees ?? '-')} employees · ${esc(acc.industry || '')}</span></div>
+    ${renewal}
+    <a class="more" href="${esc(acc.url)}" target="_blank" rel="noopener">Open in Salesforce ↗</a></div>`;
+}
+
 async function render(extra = '') {
   const eventType = String(T.lifeEvent).replace('qle_', '');
   let check = null; let summary = null; let error = '';
@@ -117,8 +132,10 @@ async function render(extra = '') {
       <div class="row"><span>Company</span><span>${esc(summary.company_name)}</span></div>
       <div class="row"><span>Medical</span><span>${plan}</span></div>
       <div class="row"><span>Dependents</span><span>${summary.dependents.length}</span></div></div>` : ''}
+    ${accountBox(summary && summary.account)}
     ${checks ? `<h3>What was checked</h3><div class="card"><ul class="checks">${checks}</ul></div>` : ''}
-    <h3>What to do now</h3><div class="card"><ol class="guide">${guide}</ol></div>
+    <h3>What to do now</h3><div class="card"><ol class="guide">${guide}</ol>
+      ${S.procedure_url ? `<a class="more" href="${esc(S.procedure_url)}" target="_blank" rel="noopener">Full procedure in Confluence ↗</a>` : ''}</div>
     ${approved ? `<div class="card"><span class="badge ok">Approved</span> Enrollment <b>${esc(T.enrollmentId || '')}</b></div>` : ''}
     ${!approved && result === 'ai_intake_complete' ? `<h3>Approve the enrollment</h3><div class="card">
       <label for="fn">Baby's legal first name</label><input id="fn" autocomplete="off">

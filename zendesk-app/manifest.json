@@ -15,7 +15,7 @@
       }
     }
   },
-  "version": "1.0.2",
+  "version": "1.1.0",
   "frameworkVersion": "2.0",
   "domainWhitelist": [
     "northwind-integration.up.railway.app"
@@ -57,6 +57,11 @@
       "name": "field_enrollment_id",
       "type": "number",
       "required": true
+    },
+    {
+      "name": "procedure_url",
+      "type": "url",
+      "required": false
     }
   ]
 }

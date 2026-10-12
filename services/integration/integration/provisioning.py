@@ -25,8 +25,11 @@ def desired_settings() -> dict | None:
     needed = ["life_event_type", "ai_intake_result", "event_date", "enrollment_outcome", "enrollment_id"]
     if not (key and base and all(n in ids for n in needed)):
         return None
-    return {"integration_base_url": base.rstrip("/"), "integration_api_key": key,
-            **{f"field_{n}": ids[n] for n in needed}}
+    settings = {"integration_base_url": base.rstrip("/"), "integration_api_key": key,
+                **{f"field_{n}": ids[n] for n in needed}}
+    if s.procedure_url:
+        settings["procedure_url"] = s.procedure_url
+    return settings
 
 
 async def sync_sidebar_app(zd: ZendeskClient) -> str:

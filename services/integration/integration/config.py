@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     zendesk_app_installation_id: str = ""
     # This service's public URL, as the sidebar app reaches it. Railway sets RAILWAY_PUBLIC_DOMAIN.
     public_base_url: str = ""
+    # The Benefits Ops procedure (Confluence), linked from the sidebar's guidance.
+    procedure_url: str = ""
 
     # Salesforce (External Client App, OAuth client credentials). Context only: never blocks a check or an approval.
     salesforce_instance_url: str = ""
