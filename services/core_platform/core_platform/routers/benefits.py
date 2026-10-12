@@ -149,6 +149,14 @@ def create_enrollment(body: EnrollmentCreate, response: Response,
     return _enrollment_out(en)
 
 
+@router.get("/enrollments")
+def list_enrollments(limit: int = 200, db: Session = Depends(get_db),
+                     caller: Caller = Depends(require_scope("benefits:read"))):
+    """Latest enrollments first. Used for reporting (time from ticket to approval)."""
+    rows = db.scalars(select(Enrollment).order_by(Enrollment.pk.desc()).limit(max(1, min(limit, 500)))).all()
+    return {"enrollments": [_enrollment_out(en) for en in rows]}
+
+
 @router.get("/enrollments/{enrollment_id}")
 def get_enrollment(enrollment_id: str, db: Session = Depends(get_db),
                    caller: Caller = Depends(require_scope("benefits:read"))):

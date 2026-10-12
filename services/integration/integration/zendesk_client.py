@@ -68,6 +68,10 @@ class ZendeskClient:
     async def ticket(self, ticket_id: int) -> dict:
         return (await self._request("GET", f"/api/v2/tickets/{ticket_id}.json")).json()["ticket"]
 
+    async def recent_tickets(self, limit: int = 100) -> list[dict]:
+        params = {"sort_by": "created_at", "sort_order": "desc", "per_page": min(limit, 100)}
+        return (await self._request("GET", "/api/v2/tickets.json", params=params)).json()["tickets"]
+
     async def user(self, user_id: int) -> dict:
         return (await self._request("GET", f"/api/v2/users/{user_id}.json")).json()["user"]
 

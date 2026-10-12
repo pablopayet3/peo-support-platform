@@ -55,6 +55,10 @@ class CoreClient:
         body = {"employee_id": employee_id, "event_type": event_type, "event_date": event_date}
         return (await self._request("POST", "/v1/qle/evaluate", request_id, json=body)).json()
 
+    async def enrollments(self, request_id: str, limit: int = 200) -> list[dict]:
+        resp = await self._request("GET", "/v1/enrollments", request_id, params={"limit": limit})
+        return resp.json()["enrollments"]
+
     async def create_enrollment(self, body: dict, idempotency_key: str, request_id: str) -> tuple[dict, bool]:
         resp = await self._request("POST", "/v1/enrollments", request_id, json=body,
                                    headers={"Idempotency-Key": idempotency_key})

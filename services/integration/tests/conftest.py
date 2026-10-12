@@ -56,6 +56,7 @@ class FakeZendesk:
         self.tags: dict[int, set] = {}
         self.signing_secret, self.secret_reads = "whsec-from-zendesk", 0
         self.app_settings_updates: list[dict] = []
+        self.listed_tickets: list[dict] = []
 
     def add_ticket(self, tid: int, requester_id: int, fields: dict[int, object]):
         self.tickets[tid] = {"id": tid, "requester_id": requester_id,
@@ -65,6 +66,8 @@ class FakeZendesk:
     def handler(self, request: httpx.Request) -> httpx.Response:
         path, m = request.url.path, request.method
         parts = path.strip("/").split("/")
+        if parts == ["api", "v2", "tickets.json"]:
+            return httpx.Response(200, json={"tickets": list(self.listed_tickets)})
         if parts[:3] == ["api", "v2", "tickets"]:
             tid = int(parts[3].removesuffix(".json"))
             if len(parts) == 5 and parts[4] == "tags.json":

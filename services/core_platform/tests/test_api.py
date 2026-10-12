@@ -118,3 +118,10 @@ def test_demo_email_override_points_a_person_at_a_real_inbox(client):
         assert apply_demo_email_overrides(db, {"P-1003": "demo+priya@example.com"}) == 1
         assert apply_demo_email_overrides(db, {"P-1003": "demo+priya@example.com"}) == 0
         assert db.get(Person, "P-1003").email == "demo+priya@example.com"
+
+
+def test_list_enrollments_for_reporting(client):
+    r = client.get("/v1/enrollments", params={"limit": 5}, headers=READONLY)
+    assert r.status_code == 200
+    rows = r.json()["enrollments"]
+    assert all({"enrollment_id", "approved_at", "source_ref"} <= set(e) for e in rows)

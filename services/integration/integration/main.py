@@ -12,10 +12,10 @@ from datetime import date
 from typing import Literal
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
-from . import provisioning, workflows
+from . import ops, provisioning, workflows
 from .checks import CheckRequest, Contact, run_qle_check
 from .config import get_settings
 from .core_client import Conflict, CoreClient, NotFound
@@ -35,7 +35,7 @@ class JsonFormatter(logging.Formatter):
 log = logging.getLogger("integration")
 _h = logging.StreamHandler()
 _h.setFormatter(JsonFormatter())
-log.handlers[:] = [_h]
+log.handlers[:] = [_h, ops.monitor]
 log.setLevel(get_settings().log_level)
 log.propagate = False
 
@@ -111,6 +111,19 @@ def healthz(request: Request):
             "zendesk_auth": request.app.state.zendesk.auth.mode,
             "core_key_set": bool(s.core_api_key), "caller_keys": len(s.keys()),
             "salesforce": "configured" if request.app.state.salesforce.configured else "not_configured"}
+
+
+@app.get("/ops", response_class=HTMLResponse, tags=["Ops"])
+async def ops_dashboard(request_id: str = Depends(rid), client: CoreClient = Depends(core),
+                        zd: ZendeskClient = Depends(zendesk)):
+    """Support Ops dashboard: life-event reporting and this service's health. Aggregates and ticket numbers only."""
+    return ops.render(await ops.reporter.report(zd, client, request_id), ops.monitor.snapshot())
+
+
+@app.get("/v1/ops/report", tags=["Ops"])
+async def ops_report(request_id: str = Depends(rid), client: CoreClient = Depends(core),
+                     zd: ZendeskClient = Depends(zendesk)):
+    return {"reporting": await ops.reporter.report(zd, client, request_id), "monitoring": ops.monitor.snapshot()}
 
 
 class ContactIn(BaseModel):
