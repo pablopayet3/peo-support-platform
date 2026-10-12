@@ -1,0 +1,23 @@
+{
+  "name": "Northwind Benefits",
+  "author": { "name": "Pablo Payet", "email": "pablo.payet3@gmail.com", "url": "https://github.com/pablopayet3/peo-support-platform" },
+  "defaultLocale": "en",
+  "private": true,
+  "location": {
+    "support": {
+      "ticket_sidebar": { "url": "assets/iframe.html", "flexible": true }
+    }
+  },
+  "version": "1.0.0",
+  "frameworkVersion": "2.0",
+  "domainWhitelist": ["peo-integration-production.up.railway.app"],
+  "parameters": [
+    { "name": "integration_base_url", "type": "text", "required": true, "default": "https://peo-integration-production.up.railway.app" },
+    { "name": "integration_api_key", "type": "text", "required": true, "secure": true },
+    { "name": "field_life_event_type", "type": "number", "required": true },
+    { "name": "field_ai_intake_result", "type": "number", "required": true },
+    { "name": "field_event_date", "type": "number", "required": true },
+    { "name": "field_enrollment_outcome", "type": "number", "required": true },
+    { "name": "field_enrollment_id", "type": "number", "required": true }
+  ]
+}

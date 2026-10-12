@@ -1,0 +1,76 @@
+# Zendesk configuration as code for the Northwind PEO life-event flow.
+# `python apply.py plan` shows what would change; `python apply.py apply` makes the changes.
+# References are resolved at apply time: {field:Title}, {group:Name}, {webhook:Name}.
+
+ticket_fields:
+  - title: Life event type
+    type: tagger
+    options:
+      - { name: Newborn, value: qle_newborn }
+      - { name: Adoption, value: qle_adoption }
+      - { name: Marriage, value: qle_marriage }
+      - { name: Loss of other coverage, value: qle_loss_of_coverage }
+  - title: AI intake result
+    type: tagger
+    options:
+      - { name: Complete, value: ai_intake_complete }
+      - { name: Incomplete, value: ai_intake_incomplete }
+      - { name: "Failed: no active plan", value: ai_fail_no_plan }
+      - { name: "Failed: identity not confirmed", value: ai_fail_identity }
+      - { name: "Failed: outside enrollment window", value: ai_fail_window }
+  - title: Event date
+    type: date
+  - title: Enrollment outcome
+    type: tagger
+    options:
+      - { name: Approved, value: qle_approved }
+      - { name: Approved with carrier exception, value: qle_approved_exception }
+      - { name: Not eligible, value: qle_not_eligible }
+      - { name: Withdrawn, value: qle_withdrawn }
+  - title: Enrollment ID
+    type: text
+
+groups:
+  - Benefits Ops
+  - Benefits Escalation
+
+webhooks:
+  # Zendesk generates each signing secret. Copy it once into the service's variables
+  # (INT_ZENDESK_WEBHOOK_SECRET / AGENT_ZENDESK_WEBHOOK_SECRET); this tool never reads secrets.
+  - name: Integration service - checks
+    endpoint: ${INTEGRATION_URL}/v1/webhooks/zendesk
+  - name: Email intake agent
+    endpoint: ${AGENT_URL}/v1/webhooks/zendesk
+
+trigger_category: "Benefits: life events"
+
+triggers:
+  - title: "05-INTAKE | New email ticket | Email intake agent"
+    description: Hands every new email ticket to the email intake agent, which decides whether it is a life event.
+    all:
+      - { field: update_type, operator: is, value: Create }
+      - { field: via_id, operator: is, value: "4" }
+    actions:
+      - { field: notification_webhook, value: ["{webhook:Email intake agent}", '{"ticket_id": "{{ticket.id}}"}'] }
+  - title: "06-INTAKE | Customer answered the agent | Email intake agent"
+    description: The customer replied while the agent was waiting for an answer.
+    all:
+      - { field: update_type, operator: is, value: Change }
+      - { field: comment_is_public, operator: is, value: "true" }
+      - { field: role, operator: is, value: end_user }
+    any:
+      - { field: current_tags, operator: includes, value: ai_intake_confirming }
+      - { field: current_tags, operator: includes, value: ai_intake_waiting_date }
+      - { field: current_tags, operator: includes, value: ai_intake_waiting_company }
+    actions:
+      - { field: notification_webhook, value: ["{webhook:Email intake agent}", '{"ticket_id": "{{ticket.id}}"}'] }
+  - title: "45-CHECK | Life event without checks | Integration service"
+    description: A person filled in the life-event fields (phone, or by hand). The integration service runs the checks.
+    all:
+      - { field: "{field:Life event type}", operator: present }
+      - { field: "{field:AI intake result}", operator: not_present }
+      - { field: current_tags, operator: not_includes, value: qle_check_requested }
+      - { field: status_category, operator: less_than, value: solved }
+    actions:
+      - { field: current_tags, value: qle_check_requested }
+      - { field: notification_webhook, value: ["{webhook:Integration service - checks}", '{"ticket_id": "{{ticket.id}}"}'] }

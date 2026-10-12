@@ -1,0 +1,8 @@
+{
+  "app": {
+    "name": "Northwind Benefits",
+    "short_description": "Life-event checks, deadline and approval in the ticket.",
+    "long_description": "Shows the employee's plan and the enrollment deadline, runs the eligibility checks, shows the procedure for each step, and records the specialist's approval in the core platform. Northwind PEO is a fictional company.",
+    "installation_instructions": "Enter the integration service URL and key, and the IDs of the five life-event ticket fields."
+  }
+}
