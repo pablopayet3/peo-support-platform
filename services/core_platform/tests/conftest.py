@@ -13,7 +13,7 @@ os.environ["CORE_API_KEYS"] = json.dumps({
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.main import app  # noqa: E402
+from core_platform.main import app  # noqa: E402
 
 INTEGRATION = {"Authorization": "Bearer key-integration"}
 READONLY = {"Authorization": "Bearer key-readonly"}

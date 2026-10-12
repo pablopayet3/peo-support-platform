@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.rules import enrollment_window
+from core_platform.rules import enrollment_window
 
 
 def test_deadline_is_1159pm_local_on_the_last_day():

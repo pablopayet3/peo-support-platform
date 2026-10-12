@@ -213,17 +213,31 @@ components:
           description: Only when an admin writes for an employee.
         event_type: { $ref: '#/components/schemas/EventType' }
         event_date: { type: string, format: date }
+        company_id:
+          type: string
+          description: The "Company in Question", when the person belongs to several companies.
     QleCheckResult:
       type: object
       required: [failed_check, ai_intake_result, checks]
       properties:
         failed_check:
           type: string
-          enum: [none, identity, no_plan, window_closed]
+          description: |
+            company_unclear is not a failure. The person belongs to several companies, so the caller asks
+            "Which company is this about?" and calls again with company_id.
+          enum: [none, identity, no_plan, window_closed, company_unclear]
         ai_intake_result:
           type: string
           description: The value to write to the Zendesk field AI intake result.
-          enum: [ai_intake_complete, ai_fail_identity, ai_fail_no_plan, ai_fail_window]
+          enum: [ai_intake_complete, ai_intake_incomplete, ai_fail_identity, ai_fail_no_plan, ai_fail_window]
+        company_options:
+          type: array
+          description: Only with company_unclear.
+          items:
+            type: object
+            properties:
+              company_id: { type: string }
+              company_name: { type: string }
         eligible: { type: boolean }
         employee_id: { type: [string, 'null'] }
         company_name: { type: [string, 'null'] }

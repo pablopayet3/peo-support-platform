@@ -1,0 +1,36 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install openapi-spec-validator==0.7.1 pyyaml
+      - run: |
+          python -c "
+          import yaml; from openapi_spec_validator import validate
+          for f in ['contracts/integration-api.yaml', 'contracts/core-platform-api.yaml']:
+              validate(yaml.safe_load(open(f))); print('valid', f)"
+  core-platform:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: services/core_platform } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+  integration:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: services/integration } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q

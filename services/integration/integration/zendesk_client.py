@@ -80,3 +80,6 @@ class ZendeskClient:
             # The tags endpoint adds to the list. Writing "tags" on the ticket would replace the list and
             # empty the drop-down fields, whose values are stored as tags (found while testing in Zendesk).
             await self._request("PUT", f"/api/v2/tickets/{ticket_id}/tags.json", json={"tags": add_tags})
+
+    async def remove_tags(self, ticket_id: int, tags: list[str]) -> None:
+        await self._request("DELETE", f"/api/v2/tickets/{ticket_id}/tags.json", json={"tags": tags})
