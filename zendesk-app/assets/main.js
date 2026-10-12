@@ -1,5 +1,15 @@
 /* Northwind Benefits sidebar app. Calls the integration service through Zendesk's secure request proxy,
    so the API key never reaches the browser. Northwind PEO is a fictional company. */
+
+/* Zendesk returns a date field as the agent's local midnight in UTC (2026-10-06T04:00:00.000Z in New York).
+   Turn it back into the calendar day the agent picked. */
+function day(v) {
+  if (!v || /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const d = new Date(v);
+  if (isNaN(d)) return v;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const client = ZAFClient.init();
 const $ = (html) => { document.getElementById('app').innerHTML = html; };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -71,7 +81,7 @@ async function load() {
   T = {
     id: d['ticket.id'], email: d['ticket.requester.email'], me: d['currentUser.id'],
     lifeEvent: d[field(S.field_life_event_type)], result: d[field(S.field_ai_intake_result)],
-    eventDate: d[field(S.field_event_date)], outcome: d[field(S.field_enrollment_outcome)], enrollmentId: d[field(S.field_enrollment_id)],
+    eventDate: day(d[field(S.field_event_date)]), outcome: d[field(S.field_enrollment_outcome)], enrollmentId: d[field(S.field_enrollment_id)],
   };
   if (!T.lifeEvent) { $('<p class="muted">Not a life-event ticket.</p>'); return; }
   await render();
