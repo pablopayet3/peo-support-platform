@@ -36,6 +36,21 @@ class ZendeskClient:
             base_url=f"https://{s.zendesk_subdomain}.zendesk.com", timeout=s.zendesk_timeout_s, transport=transport,
             headers={"Authorization": f"Basic {token}", "User-Agent": "northwind-integration/1.0"})
         self.fields = s.field_ids()
+        self._secret: str = s.zendesk_webhook_secret
+        self._secret_from_api = not s.zendesk_webhook_secret and bool(s.zendesk_webhook_id)
+        self._secret_read_at = 0.0
+
+    async def webhook_secret(self, refresh: bool = False) -> str:
+        """The signing secret of our webhook. Read from Zendesk when only the webhook ID is configured;
+        re-read at most once a minute, so a rotated secret works without a redeploy."""
+        if not self._secret_from_api:
+            return self._secret
+        if self._secret and not (refresh and time.time() - self._secret_read_at > 60):
+            return self._secret
+        wid = get_settings().zendesk_webhook_id
+        data = (await self._request("GET", f"/api/v2/webhooks/{wid}/signing_secret")).json()
+        self._secret, self._secret_read_at = data["signing_secret"]["secret"], time.time()
+        return self._secret
 
     async def aclose(self) -> None:
         await self._client.aclose()

@@ -179,3 +179,23 @@ def test_webhook_is_idempotent(client, fake_zd):
     raw, headers = signed({"ticket_id": 23})
     client.post("/v1/webhooks/zendesk", content=raw, headers=headers)
     assert fake_zd.updates == []
+
+
+def test_signing_secret_is_read_from_zendesk_when_only_the_webhook_id_is_set(client, fake_zd, monkeypatch):
+    from integration.config import get_settings
+    monkeypatch.setattr(get_settings(), "zendesk_webhook_id", "01HWEBHOOK")
+    zd = app.state.zendesk
+    zd._secret, zd._secret_from_api = "", True
+    fake_zd.add_ticket(23, 7001, {101: "qle_newborn", 103: "2026-10-06"})
+    raw, headers = signed({"ticket_id": 23}, secret="whsec-from-zendesk")
+    assert client.post("/v1/webhooks/zendesk", content=raw, headers=headers).status_code == 202
+    raw, headers = signed({"ticket_id": 23}, secret="whsec-from-zendesk")
+    assert client.post("/v1/webhooks/zendesk", content=raw, headers=headers).status_code == 202
+    assert fake_zd.secret_reads == 1  # cached after the first read
+
+    # Zendesk rotates the secret: the next webhook triggers one fresh read, and works
+    fake_zd.signing_secret = "whsec-rotated"
+    zd._secret_read_at = 0
+    raw, headers = signed({"ticket_id": 23}, secret="whsec-rotated")
+    assert client.post("/v1/webhooks/zendesk", content=raw, headers=headers).status_code == 202
+    assert fake_zd.secret_reads == 2

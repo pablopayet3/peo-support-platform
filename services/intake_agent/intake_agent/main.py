@@ -67,8 +67,11 @@ def healthz():
 @app.post("/v1/webhooks/zendesk", status_code=202)
 async def webhook(request: Request, background: BackgroundTasks):
     raw = await request.body()
-    if not verify(raw, request.headers.get("x-zendesk-webhook-signature"),
-                  request.headers.get("x-zendesk-webhook-signature-timestamp"), get_settings().zendesk_webhook_secret):
+    sig = request.headers.get("x-zendesk-webhook-signature")
+    ts = request.headers.get("x-zendesk-webhook-signature-timestamp")
+    zd = request.app.state.zd
+    if not verify(raw, sig, ts, await zd.webhook_secret()) and \
+            not verify(raw, sig, ts, await zd.webhook_secret(refresh=True)):
         raise HTTPException(401, "invalid signature")
     try:
         ticket_id = int(json.loads(raw)["ticket_id"])

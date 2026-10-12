@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     zendesk_subdomain: str = ""
     zendesk_email: str = ""
     zendesk_api_token: str = ""
+    # The signing secret, or the webhook's ID so the agent reads the secret from Zendesk itself.
     zendesk_webhook_secret: str = ""
+    zendesk_webhook_id: str = ""
     zendesk_field_ids: str = "{}"
 
     # Confidence thresholds from the case study, section 3

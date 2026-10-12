@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     zendesk_subdomain: str = ""
     zendesk_email: str = ""
     zendesk_api_token: str = ""
+    # Either the webhook's signing secret, or the webhook's ID: with the ID, the service reads the secret
+    # from Zendesk with its API token, so nobody copies it by hand and a rotated secret is picked up.
     zendesk_webhook_secret: str = ""
+    zendesk_webhook_id: str = ""
     zendesk_timeout_s: float = 8.0
     # JSON: {"life_event_type": 123, "ai_intake_result": 456, "event_date": 789,
     #        "enrollment_outcome": 111, "enrollment_id": 222}

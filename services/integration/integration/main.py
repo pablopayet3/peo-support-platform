@@ -172,9 +172,10 @@ async def approve_enrollment(body: ApproveIn, response: Response, request_id: st
 async def zendesk_webhook(request: Request, background: BackgroundTasks, request_id: str = Depends(rid),
                           client: CoreClient = Depends(core), zd: ZendeskClient = Depends(zendesk)):
     raw = await request.body()
-    if not verify_signature(raw, request.headers.get("x-zendesk-webhook-signature"),
-                            request.headers.get("x-zendesk-webhook-signature-timestamp"),
-                            get_settings().zendesk_webhook_secret):
+    sig = request.headers.get("x-zendesk-webhook-signature")
+    ts = request.headers.get("x-zendesk-webhook-signature-timestamp")
+    if not verify_signature(raw, sig, ts, await zd.webhook_secret()) and \
+            not verify_signature(raw, sig, ts, await zd.webhook_secret(refresh=True)):
         raise HTTPException(401, "invalid signature")
     try:
         ticket_id = int(json.loads(raw)["ticket_id"])

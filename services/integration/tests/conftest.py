@@ -52,6 +52,7 @@ class FakeZendesk:
         self.groups = {9001: [500], 9002: [600]}  # 9001 is in Benefits Ops, 9002 is not
         self.updates: list[tuple[int, dict]] = []
         self.tags: dict[int, set] = {}
+        self.signing_secret, self.secret_reads = "whsec-from-zendesk", 0
 
     def add_ticket(self, tid: int, requester_id: int, fields: dict[int, object]):
         self.tickets[tid] = {"id": tid, "requester_id": requester_id,
@@ -75,6 +76,9 @@ class FakeZendesk:
             for f in body.get("custom_fields", []):
                 t["custom_fields"] = [x for x in t["custom_fields"] if x["id"] != f["id"]] + [f]
             return httpx.Response(200, json={"ticket": t})
+        if parts[:3] == ["api", "v2", "webhooks"] and parts[-1] == "signing_secret":
+            self.secret_reads += 1
+            return httpx.Response(200, json={"signing_secret": {"algorithm": "SHA256", "secret": self.signing_secret}})
         if parts[:3] == ["api", "v2", "users"]:
             uid = int(parts[3].removesuffix(".json"))
             if len(parts) == 5:

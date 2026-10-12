@@ -1,6 +1,7 @@
 """Small clients for Zendesk and the integration service. Both use time limits and retries."""
 import asyncio
 import base64
+import time
 
 import httpx
 
@@ -29,6 +30,19 @@ class Zendesk:
         self.c = httpx.AsyncClient(base_url=f"https://{s.zendesk_subdomain}.zendesk.com", timeout=10,
                                    headers={"Authorization": f"Basic {token}"}, transport=transport)
         self.fields = s.field_ids()
+        self._secret = s.zendesk_webhook_secret
+        self._secret_from_api = not s.zendesk_webhook_secret and bool(s.zendesk_webhook_id)
+        self._secret_read_at = 0.0
+
+    async def webhook_secret(self, refresh: bool = False) -> str:
+        """Signing secret of the agent's webhook, read from Zendesk when only the webhook ID is set."""
+        if not self._secret_from_api:
+            return self._secret
+        if self._secret and not (refresh and time.time() - self._secret_read_at > 60):
+            return self._secret
+        data = await self._ok("GET", f"/api/v2/webhooks/{get_settings().zendesk_webhook_id}/signing_secret")
+        self._secret, self._secret_read_at = data["signing_secret"]["secret"], time.time()
+        return self._secret
 
     async def _ok(self, method, url, **kw) -> dict:
         r = await _send(self.c, method, url, **kw)
