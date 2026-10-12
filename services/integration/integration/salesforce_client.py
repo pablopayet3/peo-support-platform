@@ -26,15 +26,15 @@ COMPANY_ID = re.compile(r"^C-\d{4}$")
 # Demo accounts, matching the core platform's sample companies. Created once if missing.
 DEMO_ACCOUNTS = [
     {"AccountNumber": "C-1001", "Name": "Acme Bakery", "Industry": "Food & Beverage", "NumberOfEmployees": 24,
-     "Type": "Customer - Direct", "Rating": "Warm", "BillingCity": "New York", "BillingState": "NY",
+     "Type": "Customer - Direct", "Rating": "Warm", "BillingCity": "New York",
      "renewal": ("Acme Bakery - 2027 renewal", "2027-01-01", 101400, "Negotiation/Review"),
      "contact": ("Daniel", "Kim", "Office Manager, Northwind admin")},
     {"AccountNumber": "C-1002", "Name": "Bluebird Design Studio", "Industry": "Media", "NumberOfEmployees": 18,
-     "Type": "Customer - Direct", "Rating": "Hot", "BillingCity": "Los Angeles", "BillingState": "CA",
+     "Type": "Customer - Direct", "Rating": "Hot", "BillingCity": "Los Angeles",
      "renewal": ("Bluebird Design Studio - 2027 renewal", "2027-03-01", 64800, "Value Proposition"),
      "contact": ("Tom", "Becker", "Studio Lead")},
     {"AccountNumber": "C-1003", "Name": "Harbor & Pine Accounting", "Industry": "Finance", "NumberOfEmployees": 12,
-     "Type": "Customer - Direct", "Rating": "Cold", "BillingCity": "Chicago", "BillingState": "IL",
+     "Type": "Customer - Direct", "Rating": "Cold", "BillingCity": "Chicago",
      "renewal": ("Harbor & Pine Accounting - renewal", "2026-12-01", 52200, "Perception Analysis"),
      "contact": ("Sam", "Rivera", "Managing Partner, Northwind admin")},
 ]
@@ -83,7 +83,9 @@ class SalesforceClient:
         resp = await call_with_retries(send, breaker)
         if resp.status_code >= 500:
             raise Unavailable(f"salesforce error {resp.status_code}")
-        resp.raise_for_status()
+        if resp.status_code >= 400:  # Salesforce explains what it refused in the body: keep it for the logs
+            raise httpx.HTTPStatusError(f"salesforce {resp.status_code}: {resp.text[:300]}",
+                                        request=resp.request, response=resp)
         return resp
 
     async def query(self, soql: str) -> list[dict]:
