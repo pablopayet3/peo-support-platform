@@ -30,7 +30,7 @@
     {
       "name": "integration_api_key",
       "type": "text",
-      "required": true,
+      "required": false,
       "secure": true
     },
     {
