@@ -8,6 +8,7 @@ from datetime import datetime
 import httpx
 
 from .config import get_settings
+from .zendesk_auth import ZendeskAuth
 from .resilience import CircuitBreaker, Unavailable, call_with_retries
 
 breaker = CircuitBreaker("zendesk", failure_threshold=8, reset_after_s=20)
@@ -31,10 +32,12 @@ def verify_signature(body: bytes, signature: str | None, timestamp: str | None, 
 class ZendeskClient:
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None):
         s = get_settings()
-        token = base64.b64encode(f"{s.zendesk_email}/token:{s.zendesk_api_token}".encode()).decode()
+        self.auth = ZendeskAuth(s.zendesk_subdomain, client_id=s.zendesk_oauth_client_id,
+                                client_secret=s.zendesk_oauth_client_secret, scope=s.zendesk_oauth_scope,
+                                email=s.zendesk_email, api_token=s.zendesk_api_token, transport=transport)
         self._client = httpx.AsyncClient(
             base_url=f"https://{s.zendesk_subdomain}.zendesk.com", timeout=s.zendesk_timeout_s, transport=transport,
-            headers={"Authorization": f"Basic {token}", "User-Agent": "northwind-integration/1.0"})
+            auth=self.auth, headers={"User-Agent": "northwind-integration/1.0"})
         self.fields = s.field_ids()
         self._secret: str = s.zendesk_webhook_secret
         self._secret_from_api = not s.zendesk_webhook_secret and bool(s.zendesk_webhook_id)

@@ -20,6 +20,11 @@ class Settings(BaseSettings):
 
     # Zendesk
     zendesk_subdomain: str = ""
+    # Zendesk API access: OAuth client credentials (a confidential OAuth client). The API token pair below
+    # is only for accounts that still have API tokens; Zendesk deactivates all of them on April 30, 2027.
+    zendesk_oauth_client_id: str = ""
+    zendesk_oauth_client_secret: str = ""
+    zendesk_oauth_scope: str = "read write"
     zendesk_email: str = ""
     zendesk_api_token: str = ""
     # Either the webhook's signing secret, or the webhook's ID: with the ID, the service reads the secret
