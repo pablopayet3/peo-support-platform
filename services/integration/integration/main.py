@@ -186,8 +186,13 @@ async def zendesk_webhook(request: Request, background: BackgroundTasks, request
     raw = await request.body()
     sig = request.headers.get("x-zendesk-webhook-signature")
     ts = request.headers.get("x-zendesk-webhook-signature-timestamp")
-    if not verify_signature(raw, sig, ts, await zd.webhook_secret()) and \
-            not verify_signature(raw, sig, ts, await zd.webhook_secret(refresh=True)):
+    try:
+        valid = verify_signature(raw, sig, ts, await zd.webhook_secret()) or \
+            verify_signature(raw, sig, ts, await zd.webhook_secret(refresh=True))
+    except Exception as exc:  # noqa: BLE001 - Zendesk retries a 503; a crash would end the delivery
+        log.error("signing secret unavailable", extra={"extra_fields": {"error": repr(exc)[:300]}})
+        raise HTTPException(503, "signing secret unavailable")
+    if not valid:
         raise HTTPException(401, "invalid signature")
     try:
         ticket_id = int(json.loads(raw)["ticket_id"])
