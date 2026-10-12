@@ -1,0 +1,12 @@
+# Railway configuration as code for this service. Railway reads it from /services/intake_agent/railway.toml.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+# Only rebuild this service when its own code changes
+watchPatterns = ["/services/intake_agent/**"]
+
+[deploy]
+healthcheckPath = "/healthz"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

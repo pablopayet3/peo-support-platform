@@ -12,15 +12,29 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./core.db"
     # JSON: {"<key>": {"client": "integration-service", "scopes": ["identity:read", ...]}}
     api_keys: str = Field(default="{}")
+    # Keys shorter than this are ignored, so an empty or unresolved secret can never match.
+    min_key_length: int = 32
     admin_user: str = "admin"
-    admin_password: str = "change-me"
+    admin_password: str = ""
+    # Public read-only demo: the admin screens open without a password. Only for fictional data.
+    admin_public_demo: bool = False
     seed_on_start: bool = True
     # For demos and tests only: pretend today is this date (YYYY-MM-DD).
     frozen_today: str | None = None
     log_level: str = "INFO"
 
     def keys(self) -> dict[str, dict]:
-        return json.loads(self.api_keys or "{}")
+        keys = json.loads(self.api_keys or "{}")
+        return {k: v for k, v in keys.items() if len(k) >= self.min_key_length and "${{" not in k}
+
+    @property
+    def sqlalchemy_url(self) -> str:
+        """Hosted Postgres gives postgres:// or postgresql:// URLs; SQLAlchemy needs the driver named."""
+        url = self.database_url
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix):]
+        return url
 
 
 @lru_cache

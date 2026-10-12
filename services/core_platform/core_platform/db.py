@@ -21,7 +21,7 @@ def make_engine(url: str):
     return create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5)
 
 
-engine = make_engine(get_settings().database_url)
+engine = make_engine(get_settings().sqlalchemy_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

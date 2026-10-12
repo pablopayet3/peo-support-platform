@@ -95,3 +95,16 @@ def test_admin_screens_need_a_password_and_render(client):
         r = client.get(path, auth=auth)
         assert r.status_code == 200, path
     assert "charged 2 times" in client.get("/admin/billing", auth=auth).text
+
+
+def test_short_or_unresolved_keys_never_match(monkeypatch):
+    from core_platform.config import Settings
+    s = Settings(api_keys='{"": {"scopes": ["benefits:read"]}, "${{shared.X}}": {}, "%s": {}}' % ("k" * 40),
+                 min_key_length=32)
+    assert list(s.keys()) == ["k" * 40]
+
+
+def test_postgres_url_gets_the_driver():
+    from core_platform.config import Settings
+    assert Settings(database_url="postgresql://u:p@h:5432/db").sqlalchemy_url == "postgresql+psycopg://u:p@h:5432/db"
+    assert Settings(database_url="postgres://u:p@h/db").sqlalchemy_url == "postgresql+psycopg://u:p@h/db"

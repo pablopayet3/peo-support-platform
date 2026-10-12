@@ -12,6 +12,6 @@
 <a href="/admin/billing" class="{{ 'on' if nav=='billing' }}">Billing</a>
 <a href="/admin/audit" class="{{ 'on' if nav=='audit' }}">Audit log</a>
 </nav></header>
-<div class="demo">Demo system. Northwind PEO and every person, company and plan here are fictional.</div>
+<div class="demo">Demo system. Northwind PEO and every person, company and plan here are fictional.{% if public_demo %} Public read-only view: in production these screens sit behind single sign-on.{% endif %}</div>
 <main>{% block body %}{% endblock %}</main>
 </body></html>

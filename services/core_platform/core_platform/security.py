@@ -40,14 +40,15 @@ def require_scope(scope: str):
     return dependency
 
 
-_basic = HTTPBasic()
+_basic = HTTPBasic(auto_error=False)
 
 
-def require_admin(credentials: HTTPBasicCredentials = Depends(_basic)) -> str:
+def require_admin(credentials: HTTPBasicCredentials | None = Depends(_basic)) -> str:
     s = get_settings()
-    ok = secrets.compare_digest(credentials.username, s.admin_user) and secrets.compare_digest(
-        credentials.password, s.admin_password
-    )
+    if s.admin_public_demo:
+        return "public-demo"
+    ok = bool(credentials and s.admin_password) and secrets.compare_digest(
+        credentials.username, s.admin_user) and secrets.compare_digest(credentials.password, s.admin_password)
     if not ok:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials", headers={"WWW-Authenticate": "Basic"})
     return credentials.username

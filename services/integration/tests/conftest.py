@@ -8,6 +8,8 @@ from pathlib import Path
 os.environ.update({
     "CORE_DATABASE_URL": "sqlite:///:memory:",
     "CORE_FROZEN_TODAY": "2026-10-12",
+    "CORE_MIN_KEY_LENGTH": "6",
+    "INT_MIN_KEY_LENGTH": "6",
     "CORE_API_KEYS": json.dumps({"core-key": {"client": "integration-service",
                                               "scopes": ["identity:read", "benefits:read", "enrollments:write"]}}),
     "INT_API_KEYS": json.dumps({

@@ -7,11 +7,13 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..config import get_settings
 from ..db import get_db
 from ..models import AuditEvent, Company, Employee, Enrollment, Invoice, Payment
 from ..security import require_admin
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+templates.env.globals["public_demo"] = get_settings().admin_public_demo
 router = APIRouter(include_in_schema=False, dependencies=[Depends(require_admin)])
 
 

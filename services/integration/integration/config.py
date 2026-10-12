@@ -10,6 +10,8 @@ class Settings(BaseSettings):
 
     # Callers of this service. JSON: {"<key>": {"client": "intake-agent", "scopes": ["checks:run"]}}
     api_keys: str = "{}"
+    # Keys shorter than this are ignored, so an empty or unresolved secret can never match.
+    min_key_length: int = 32
 
     # The core platform (Engineering-owned)
     core_base_url: str = "http://localhost:8711"
@@ -35,7 +37,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     def keys(self) -> dict[str, dict]:
-        return json.loads(self.api_keys or "{}")
+        keys = json.loads(self.api_keys or "{}")
+        return {k: v for k, v in keys.items() if len(k) >= self.min_key_length and "${{" not in k}
 
     def field_ids(self) -> dict[str, int]:
         return {k: int(v) for k, v in json.loads(self.zendesk_field_ids or "{}").items()}
