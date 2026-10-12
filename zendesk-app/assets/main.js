@@ -161,4 +161,12 @@ function confirmApprove(check, eventType) {
   };
 }
 
-client.on('app.registered', () => { client.invoke('resize', { width: '100%', height: '640px' }); load(); });
+/* Grow the sidebar frame with its content, so the approval form is never cut off. */
+let lastHeight = 0;
+function fit() {
+  const h = Math.ceil(document.documentElement.scrollHeight) + 8;
+  if (Math.abs(h - lastHeight) > 4) { lastHeight = h; client.invoke('resize', { width: '100%', height: `${h}px` }); }
+}
+new ResizeObserver(fit).observe(document.body);
+
+client.on('app.registered', () => { fit(); load(); });
