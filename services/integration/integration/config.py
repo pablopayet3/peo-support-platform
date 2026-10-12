@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     # This service's public URL, as the sidebar app reaches it. Railway sets RAILWAY_PUBLIC_DOMAIN.
     public_base_url: str = ""
 
+    # Salesforce (External Client App, OAuth client credentials). Context only: never blocks a check or an approval.
+    salesforce_instance_url: str = ""
+    salesforce_client_id: str = ""
+    salesforce_client_secret: str = ""
+    salesforce_timeout_s: float = 6.0
+    salesforce_seed_demo: bool = False
+
     # A switch that turns the checks off without touching Zendesk or the AI tools.
     checks_enabled: bool = True
     log_level: str = "INFO"

@@ -21,6 +21,7 @@ from .config import get_settings
 from .core_client import Conflict, CoreClient, NotFound
 from .resilience import Unavailable
 from .security import Caller, require_scope
+from .salesforce_client import SalesforceClient
 from .zendesk_client import ZendeskClient, verify_signature
 
 
@@ -43,6 +44,7 @@ log.propagate = False
 async def lifespan(app: FastAPI):
     app.state.core = CoreClient()
     app.state.zendesk = ZendeskClient()
+    app.state.salesforce = SalesforceClient()
     s = get_settings()
     # Configuration status at startup, never the values themselves
     log.info("startup config", extra={"extra_fields": {
@@ -51,7 +53,14 @@ async def lifespan(app: FastAPI):
             "variable" if s.zendesk_webhook_secret else "missing"), "field_ids": sorted(s.field_ids())}})
     log.info("sidebar app settings", extra={"extra_fields": {
         "result": await provisioning.sync_sidebar_app(app.state.zendesk)}})
+    if app.state.salesforce.configured and s.salesforce_seed_demo:
+        try:
+            made = await app.state.salesforce.seed_demo()
+            log.info("salesforce demo data", extra={"extra_fields": {"accounts_created": made}})
+        except Exception as exc:  # noqa: BLE001 - context only; the service starts regardless
+            log.error("salesforce demo data", extra={"extra_fields": {"error": repr(exc)[:300]}})
     yield
+    await app.state.salesforce.aclose()
     await app.state.core.aclose()
     await app.state.zendesk.aclose()
 
@@ -66,6 +75,10 @@ def core(request: Request) -> CoreClient:
 
 def zendesk(request: Request) -> ZendeskClient:
     return request.app.state.zendesk
+
+
+def salesforce(request: Request) -> SalesforceClient:
+    return request.app.state.salesforce
 
 
 def rid(request: Request) -> str:
@@ -96,7 +109,8 @@ def healthz(request: Request):
     s = get_settings()
     return {"status": "ok", "checks_enabled": s.checks_enabled,
             "zendesk_auth": request.app.state.zendesk.auth.mode,
-            "core_key_set": bool(s.core_api_key), "caller_keys": len(s.keys())}
+            "core_key_set": bool(s.core_api_key), "caller_keys": len(s.keys()),
+            "salesforce": "configured" if request.app.state.salesforce.configured else "not_configured"}
 
 
 class ContactIn(BaseModel):
@@ -135,6 +149,7 @@ async def check_life_event(body: QleCheckIn, request_id: str = Depends(rid), cli
 
 @app.get("/v1/employees/{employee_id}/summary", tags=["Employees"])
 async def employee_summary(employee_id: str, request_id: str = Depends(rid), client: CoreClient = Depends(core),
+                           sf: SalesforceClient = Depends(salesforce),
                            caller: Caller = Depends(require_scope("employees:read"))):
     try:
         e = await client.employee(employee_id, request_id)
@@ -142,7 +157,17 @@ async def employee_summary(employee_id: str, request_id: str = Depends(rid), cli
     except NotFound:
         raise HTTPException(404, "employee not found")
     med = cov["medical"]
-    return {"employee_id": e["employee_id"], "name": e["name"], "company_name": e["company_name"], "role": e["role"],
+    # The CRM view of the client company. Context only: an outage shows as "unavailable", never as an error.
+    account: dict | None = {"status": "not_configured"}
+    if sf.configured:
+        try:
+            ctx = await sf.account_context(e["company_id"])
+            account = {"status": "ok", **ctx} if ctx else {"status": "not_found"}
+        except Exception as exc:  # noqa: BLE001
+            log.warning("salesforce unavailable", extra={"extra_fields": {"request_id": request_id, "error": repr(exc)[:200]}})
+            account = {"status": "unavailable"}
+    return {"employee_id": e["employee_id"], "name": e["name"], "company_id": e["company_id"],
+            "company_name": e["company_name"], "role": e["role"], "account": account,
             "medical_plan": None if med is None else {"name": med["plan_name"], "carrier": med["carrier"],
                                                       "coverage_level": med["coverage_level"]},
             "dependents": [{"name": d["name"], "relationship": d["relationship"], "status": d["status"]}
@@ -166,8 +191,10 @@ class ApproveIn(BaseModel):
 
 
 @app.post("/v1/enrollments", tags=["Enrollments"], status_code=201)
-async def approve_enrollment(body: ApproveIn, response: Response, request_id: str = Depends(rid),
+async def approve_enrollment(body: ApproveIn, response: Response, background: BackgroundTasks,
+                             request_id: str = Depends(rid),
                              client: CoreClient = Depends(core), zd: ZendeskClient = Depends(zendesk),
+                             sf: SalesforceClient = Depends(salesforce),
                              caller: Caller = Depends(require_scope("enrollments:approve"))):
     try:
         result, created = await workflows.approve(client, zd, body.model_dump(mode="json"), request_id)
@@ -177,7 +204,30 @@ async def approve_enrollment(body: ApproveIn, response: Response, request_id: st
         raise HTTPException(409, str(exc))
     if not created:
         response.status_code = 200
+    elif sf.configured:
+        background.add_task(record_in_salesforce, sf, client, body, result, request_id)
     return result
+
+
+async def record_in_salesforce(sf: SalesforceClient, client: CoreClient, body: "ApproveIn", result: dict,
+                               request_id: str) -> None:
+    """Leave a completed activity on the client's account, so Sales and the CSM see what Support did."""
+    try:
+        e = await client.employee(body.employee_id, request_id)
+        ctx = await sf.account_context(e["company_id"])
+        if not ctx:
+            return
+        dep = body.dependent
+        task_id = await sf.log_task(
+            ctx["account_id"],
+            f"Benefits: {body.event_type} enrollment {result.get('enrollment_id')} approved for {e['name']}",
+            f"Zendesk ticket #{body.ticket_id}. Dependent {dep.first_name} {dep.last_name}, born "
+            f"{dep.date_of_birth.isoformat()}. Enrollment {result.get('enrollment_id')} is pending with the carrier. "
+            f"Request {request_id}.")
+        log.info("salesforce activity", extra={"extra_fields": {"request_id": request_id, "task_id": task_id}})
+    except Exception as exc:  # noqa: BLE001 - the approval already succeeded; this is a record, not a step
+        log.error("salesforce activity failed", extra={"extra_fields": {"request_id": request_id,
+                                                                         "error": repr(exc)[:300]}})
 
 
 @app.post("/v1/webhooks/zendesk", tags=["Webhooks"], status_code=202)

@@ -1,0 +1,39 @@
+<p><strong>Internal. For Benefits Ops.</strong> Northwind PEO is a fictional company; this procedure is part of a demo build.</p>
+
+<h2>When this applies</h2>
+<p>An employee (or a company admin acting for them) asks to add a newborn or an adopted child to their health plan. This is a qualifying life event: the enrollment window is <strong>30 days from the event date</strong>, ending at 11:59 pm in the company's time zone. The ticket's due date is set to that deadline.</p>
+
+<h2>What is already done when the ticket reaches you</h2>
+<ul>
+  <li>The AI intake (email agent, or the checks run when a person fills in the life-event fields) has filled <strong>Life event type</strong>, <strong>Event date</strong> and <strong>AI intake result</strong>.</li>
+  <li>The integration service has checked three things in the core platform: who is writing, whether there is an active plan, and whether the window is still open. The results are in an internal note and in the <strong>Northwind Benefits</strong> app in the ticket sidebar.</li>
+  <li>Zendesk has routed the ticket to Benefits Ops, as a task with the deadline as its due date. Failed checks are marked urgent.</li>
+</ul>
+
+<h2>Steps</h2>
+<ol>
+  <li>Open the <strong>Northwind Benefits</strong> app in the ticket sidebar. Check the life event, the deadline countdown and the three checks.</li>
+  <li>If a check failed, follow the table below before anything else.</li>
+  <li><strong>Proof of birth.</strong> If the plan requires it to enroll, ask for it. A hospital record is enough when the plan accepts one; the birth certificate often takes weeks and can follow. If the plan does not require it, do not wait for it.</li>
+  <li><strong>Confirm the baby's legal name</strong> with the parent. It must match the proof of birth when there is one.</li>
+  <li><strong>Approve</strong> in the sidebar app. The date of birth must equal the Event date. The enrollment is created in the core platform as <em>pending with the carrier</em>; the app fills <strong>Enrollment outcome</strong> and <strong>Enrollment ID</strong> and adds an internal note. Never create the enrollment anywhere else.</li>
+  <li>Reply to the customer that the enrollment is submitted, with the coverage start date (the date of birth) and any document still to come.</li>
+  <li>Set the ticket to pending until the carrier confirms, then solve it.</li>
+</ol>
+
+<h2>When a check failed</h2>
+<table>
+  <thead><tr><th>AI intake result</th><th>What it means</th><th>What to do</th></tr></thead>
+  <tbody>
+    <tr><td>Failed: identity not confirmed</td><td>The requester is not the employee, or is an admin of another company.</td><td>Confirm who is writing. A company admin can act for an employee of the same company only. Never share plan details before identity is confirmed.</td></tr>
+    <tr><td>Failed: no active plan</td><td>The employee has no active medical plan.</td><td>Explain that a plan is needed first. If the employee believes this is wrong, check enrollment history in the core platform and escalate to Benefits Escalation.</td></tr>
+    <tr><td>Failed: outside enrollment window</td><td>More than 30 days have passed since the event.</td><td>Do not approve. If there is a documented reason for the delay, request a carrier exception through Benefits Escalation (supervisor approval). Otherwise set Enrollment outcome to Not eligible and explain the next open enrollment.</td></tr>
+    <tr><td>Incomplete</td><td>The checks could not run (date missing, company unclear, or a system was unavailable).</td><td>Get the missing value, fill in the Event date, and the checks run again automatically.</td></tr>
+  </tbody>
+</table>
+
+<h2>Escalate</h2>
+<ul>
+  <li>Less than 3 days before the deadline and not yet approvable: move to <strong>Benefits Escalation</strong>, priority urgent.</li>
+  <li>The sidebar app shows an error twice in a row: post the request ID from the internal note in #support-ops-alerts.</li>
+</ul>
