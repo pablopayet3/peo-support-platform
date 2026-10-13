@@ -69,7 +69,7 @@ async def process(ticket_id: int, zd: Zendesk, integ: Integration, extractor: Ex
 
     async def decide() -> Outcome:
         async def skip(why: str) -> Outcome:
-            await zd.update(ticket_id, comment=f"AI intake did not take this request: {why}. Normal routing applies.\n{triage}")
+            await zd.update(ticket_id, comment=f"The AI support agent did not take this request: {why}. Normal routing applies.\n{triage}")
             await zd.add_tags(ticket_id, [SKIPPED])
             await zd.remove_tags(ticket_id, WAITING)
             return Outcome("skipped", why)
@@ -144,8 +144,8 @@ async def handoff(zd: Zendesk, ticket_id: int, event_type: str, event_date: date
     fields = {"life_event_type": f"qle_{event_type}", "ai_intake_result": ai_result}
     if event_date:
         fields["event_date"] = event_date.isoformat()
-    lines = [f"AI intake summary (request {request_id}):", triage, ex.summary or "-"] if triage else \
-        [f"AI intake summary (request {request_id}):", ex.summary or "-"]
+    lines = [f"AI support agent summary (request {request_id}):", triage, ex.summary or "-"] if triage else \
+        [f"AI support agent summary (request {request_id}):", ex.summary or "-"]
     if ex.dependent_first_name:
         lines.append(f"Dependent named in the conversation: {ex.dependent_first_name} {ex.dependent_last_name or ''}".strip())
     if result:
