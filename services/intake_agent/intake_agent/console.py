@@ -49,7 +49,7 @@ def render(settings, model_name: str) -> str:
         f'<td class="mono">{e(d["model"])}</td><td class="mono">{d["ms"]} ms</td></tr>'
         for d in s["recent"]) or '<tr><td colspan="7" class="muted center">No emails processed since the last deploy</td></tr>'
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="15"><title>Intake agent console · Northwind PEO</title><style>
+<meta http-equiv="refresh" content="15"><title>AI support agent console · Northwind PEO</title><style>
 :root{{--bg:#f6f5fa;--panel:#fff;--ink:#1f1b2e;--muted:#635d78;--line:#e4e0ee;--brand:#4b2a86;--hi:#1f7a45;--hi-bg:#e7f5ec;
 --med:#8a5a00;--med-bg:#fff4dc;--lo:#5d6779;--lo-bg:#eef0f4}}
 *{{box-sizing:border-box}}body{{margin:0;font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}}
@@ -68,7 +68,7 @@ th,td{{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}}th{
 .pill{{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:600}}
 .pill.high{{background:var(--hi-bg);color:var(--hi)}}.pill.medium{{background:var(--med-bg);color:var(--med)}}.pill.low{{background:var(--lo-bg);color:var(--lo)}}
 .tbl{{overflow-x:auto}}
-</style></head><body><header>Northwind PEO · AI intake agent console<span>The Forethought role · owned by Support Ops</span></header>
+</style></head><body><header>Northwind PEO · AI support agent console<span>Forethought's role: Triage + Solve</span></header>
 <div class="demo">Demo system with fictional data. Decisions since the last deploy; each ticket also keeps its intent and confidence as tags.</div>
 <main>
 <div class="facts"><div class="fact"><b>{e(model_name)}</b><span>Model (rules take over if it fails)</span></div>

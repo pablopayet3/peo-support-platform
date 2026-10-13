@@ -229,6 +229,6 @@ tr.risk td{{background:var(--bad-bg)}}.mono{{font-family:ui-monospace,Menlo,mono
 .foot{{color:var(--muted);font-size:12px}}.warn{{background:var(--bad-bg);color:var(--bad);padding:10px;border-radius:8px}}
 .dep{{display:inline-block;margin-right:8px;padding:2px 10px;border-radius:999px;font-size:12.5px;font-weight:600}}.dep.ok{{background:var(--ok-bg);color:var(--ok)}}.dep.bad{{background:var(--bad-bg);color:var(--bad)}}
 .events{{columns:2;color:var(--ink);padding-left:18px}}@media(max-width:700px){{.events{{columns:1}}table{{font-size:12px}}}}
-</style></head><body><header>Northwind PEO · Support Ops dashboard<span>Owned by Support Ops</span></header>
+</style></head><body><header>Northwind PEO · Support Ops dashboard</header>
 <div class="demo">Demo system. Northwind PEO and every person and company here are fictional. Read-only; in production this sits behind single sign-on.</div>
 <main><h2>Reporting: benefits life events</h2>{reporting}<h2>Monitoring: integration service</h2>{monitoring}</main></body></html>"""
