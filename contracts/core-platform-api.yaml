@@ -119,6 +119,26 @@ paths:
                   deadline: { type: string, format: date-time }
         '404': { $ref: '#/components/responses/NotFound' }
   /v1/enrollments:
+    get:
+      operationId: listEnrollments
+      summary: Latest enrollments first (reporting)
+      description: Scope benefits:read. Used by the Support Ops dashboard for the time from ticket to approval.
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Enrollments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enrollments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Enrollment' }
     post:
       operationId: createEnrollment
       summary: Create a pending enrollment after a person approved it
