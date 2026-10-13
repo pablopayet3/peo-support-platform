@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Northwind PEO Support Integration API", version="1.0.0", lifespan=lifespan,
-              description="Owned by Support Ops. Fictional company, sample data.")
+              description="The one API that support tools call. Fictional company, sample data.")
 
 
 def core(request: Request) -> CoreClient:

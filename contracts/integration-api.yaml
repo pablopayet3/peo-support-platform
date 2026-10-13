@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   summary: The one API that support tools (AI agents, Zendesk, the sidebar app) call.
   description: |
-    Owned by Support Operations. It sits between the support tools and the core platform,
+    It sits between the support tools and the core platform,
     which Engineering owns. Callers never reach the core platform directly.
 
     Northwind PEO is a fictional company. All data is sample data.

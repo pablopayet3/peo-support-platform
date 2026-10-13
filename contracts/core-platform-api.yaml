@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Northwind PEO - Core Platform API (internal)
   version: 1.0.0
-  summary: Identity, benefits and billing. Owned by Engineering.
+  summary: Identity, benefits and billing. The system of record.
   description: |
     The system of record. Only internal services call it, each with its own key and scopes.
     In this demo it stands in for the systems Engineering owns at a real PEO.
