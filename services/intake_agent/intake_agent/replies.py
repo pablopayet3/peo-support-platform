@@ -25,6 +25,12 @@ def ask_company(options: list[dict]) -> str:
     return f"Thanks. You're connected to more than one company with us. Which company is this request about: {names}?"
 
 
+def deadline_text(deadline_iso: str, tz: str = "America/New_York") -> str:
+    """The deadline as a person reads it, in the company's time zone (11:59 pm on the last day)."""
+    dl = datetime.fromisoformat(deadline_iso.replace("Z", "+00:00")).astimezone(ZoneInfo(tz))
+    return f"{dl.strftime('%B')} {dl.day}, {dl.year}, {dl.strftime('%I:%M %p').lstrip('0').lower()} company time"
+
+
 def handed_off(event_type: str, complete: bool, deadline_iso: str | None, tz: str = "America/New_York") -> str:
     if complete and deadline_iso:
         dl = datetime.fromisoformat(deadline_iso.replace("Z", "+00:00")).astimezone(ZoneInfo(tz))

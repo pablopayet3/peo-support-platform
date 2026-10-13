@@ -64,6 +64,39 @@ triggers:
       - { field: current_tags, operator: includes, value: ai_intake_waiting_company }
     actions:
       - { field: notification_webhook, value: ["{webhook:Email intake agent}", '{"ticket_id": "{{ticket.id}}"}'] }
+  - title: "20-URG | Life event, AI check failed | Benefits Ops, Urgent"
+    description: A check failed. The ticket goes to Benefits Ops as urgent and the group is notified.
+    all:
+      - { field: "{field:Life event type}", operator: is, value: qle_newborn }
+      - { field: current_tags, operator: not_includes, value: qle_check_failed }
+    any:
+      - { field: "{field:AI intake result}", operator: is, value: ai_fail_no_plan }
+      - { field: "{field:AI intake result}", operator: is, value: ai_fail_identity }
+      - { field: "{field:AI intake result}", operator: is, value: ai_fail_window }
+    actions:
+      - { field: group_id, value: "{group:Benefits Ops}" }
+      - { field: priority, value: urgent }
+      - { field: current_tags, value: qle_routed qle_check_failed }
+      - { field: notification_group, value: ["{group:Benefits Ops}", "Life event check failed: {{ticket.title}}", "The AI intake check failed on ticket {{ticket.id}}. Reason: see the AI intake result field.\n{{ticket.link}}"] }
+  - title: "30-ROUTE | Life event, all other cases | Benefits Ops"
+    description: Every other newborn request goes to Benefits Ops at normal priority.
+    all:
+      - { field: "{field:Life event type}", operator: is, value: qle_newborn }
+      - { field: current_tags, operator: not_includes, value: qle_routed }
+    actions:
+      - { field: group_id, value: "{group:Benefits Ops}" }
+      - { field: priority, value: normal }
+      - { field: current_tags, value: qle_routed }
+  - title: "40-DUE | Life event without a deadline | High"
+    description: A life event without a due date yet (checks not run or incomplete) is raised to high priority.
+    all:
+      - { field: "{field:Life event type}", operator: present }
+      - { field: ticket_due_date, operator: is, value: "false" }
+      - { field: status, operator: less_than, value: solved }
+      - { field: priority, operator: is_not, value: high }
+      - { field: priority, operator: is_not, value: urgent }
+    actions:
+      - { field: priority, value: high }
   - title: "45-CHECK | Life event without checks | Integration service"
     description: A person filled in the life-event fields (phone, or by hand). The integration service runs the checks.
     all:

@@ -74,6 +74,8 @@ def run(apply: bool) -> int:
                 hooks[h["name"]] = res["webhook"]
 
     def resolve(value):
+        if isinstance(value, dict):
+            return {k: resolve(v) for k, v in value.items()}
         if isinstance(value, list):
             return [resolve(v) for v in value]
         if not isinstance(value, str):

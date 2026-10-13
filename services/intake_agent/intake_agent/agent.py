@@ -151,9 +151,11 @@ async def handoff(zd: Zendesk, ticket_id: int, event_type: str, event_date: date
     if result:
         for c in result["checks"]:
             lines.append(f"- {c['name'].replace('_', ' ')}: {'passed' if c['passed'] else 'FAILED'}, {c['detail']}")
+    deadline = result.get("deadline") if result else None
+    if deadline:
+        lines.append(f"Enrollment deadline: {replies.deadline_text(deadline)}")
     if note:
         lines.append(note)
-    deadline = result.get("deadline") if result else None
     kwargs = {"ticket_type": "task", "due_at": deadline} if deadline else {}
     await zd.update(ticket_id, fields=fields, comment="\n".join(lines), **kwargs)
     complete = ai_result == "ai_intake_complete"
