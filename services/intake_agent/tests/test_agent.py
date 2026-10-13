@@ -143,3 +143,26 @@ def test_redaction():
     text, found = redact("call me at (212) 555-0101 or maria@x.example, SSN 123-45-6789")
     assert "555" not in text and "maria@" not in text and "123-45" not in text
     assert set(found) == {"SSN", "PHONE", "EMAIL"}
+
+
+def test_every_ticket_gets_intent_and_confidence_tags(zd, integ):
+    zd.new_ticket(20, 1, "How do I download my W-2 for last year?")
+    out = run(zd, integ, 20)
+    assert out.intent == "taxes" and out.action == "skipped"
+    assert {"ai_intent_taxes", "ai_confidence_medium"} <= set(zd.tickets[20]["tags"])
+    zd.new_ticket(21, 1, "Hi! We had a baby girl on October 6. How do I add her to my health insurance?")
+    out = run(zd, integ, 21)
+    assert out.intent == "life_event" and out.band == "high" and out.action == "handed_off"
+    assert {"ai_intent_life_event", "ai_confidence_high"} <= set(zd.tickets[21]["tags"])
+
+
+def test_console_renders():
+    from fastapi.testclient import TestClient
+    from intake_agent import console
+    from intake_agent.agent import Outcome
+    from intake_agent.main import app
+    console.record(7, Outcome("handed_off", "ai_intake_complete", "life_event", "newborn", 0.93, "high", "gemini"), 812, "r1")
+    with TestClient(app) as c:
+        page = c.get("/console")
+        assert page.status_code == 200 and "#7" in page.text and "0.93 high" in page.text
+        assert c.get("/v1/decisions").json()["handed_off"] >= 1

@@ -12,8 +12,9 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
 
-from . import agent
+from . import agent, console
 from .clients import Integration, Zendesk
 from .config import get_settings
 from .llm import FallbackExtractor, GeminiExtractor, RuleExtractor
@@ -87,6 +88,19 @@ def healthz():
             "integration_key_set": bool(s.integration_api_key)}
 
 
+@app.get("/console", response_class=HTMLResponse)
+def agent_console():
+    """What the agent decided, with intent and confidence. Read-only; no customer text is shown."""
+    s = get_settings()
+    model = s.model if app.state.extractor.primary is not None else "rules only"
+    return console.render(s, model)
+
+
+@app.get("/v1/decisions")
+def decisions():
+    return console.summary()
+
+
 @app.post("/v1/webhooks/zendesk", status_code=202)
 async def webhook(request: Request, background: BackgroundTasks):
     raw = await request.body()
@@ -109,11 +123,15 @@ async def webhook(request: Request, background: BackgroundTasks):
 
     async def run():
         today = datetime.now(ZoneInfo("America/New_York")).date()
+        start = time.perf_counter()
         try:
             out = await agent.process(ticket_id, request.app.state.zd, request.app.state.integ,
                                       request.app.state.extractor, today, rid)
+            console.record(ticket_id, out, (time.perf_counter() - start) * 1000, rid)
             log.info("intake step", extra={"extra_fields": {"request_id": rid, "ticket_id": ticket_id,
-                                                            "action": out.action, "detail": out.detail}})
+                                                            "action": out.action, "detail": out.detail,
+                                                            "intent": out.intent, "confidence": out.confidence,
+                                                            "band": out.band, "model": out.model}})
         except Exception as exc:  # noqa: BLE001
             log.error("intake failed", extra={"extra_fields": {"request_id": rid, "ticket_id": ticket_id,
                                                                "error": repr(exc)}})
