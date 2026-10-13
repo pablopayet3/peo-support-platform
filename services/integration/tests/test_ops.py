@@ -22,10 +22,10 @@ def ticket(tid, created, *, life_event=None, result=None, enrollment=None, due=N
 def test_report_joins_tickets_with_approvals():
     tickets = [
         ticket(1, NOW - timedelta(hours=5), life_event="qle_newborn", result="ai_intake_complete", enrollment="ENR-000001",
-               due=NOW + timedelta(days=20), tags=["fin-involved", "fin-routed-to-team"]),
+               due=NOW + timedelta(days=20), tags=["ai_intake_done"]),
         ticket(2, NOW - timedelta(hours=2), life_event="qle_newborn", result="ai_fail_window",
                due=NOW + timedelta(days=1)),                                     # at risk
-        ticket(3, NOW - timedelta(hours=1), tags=["fin-involved", "fin-resolved"]),  # Fin answered it alone
+        ticket(3, NOW - timedelta(hours=1), tags=["ai_intake_skipped"]),  # not a life event
         ticket(4, NOW - timedelta(days=45), life_event="qle_newborn"),           # outside the 30 days
         ticket(5, NOW - timedelta(hours=1), channel="sample_ticket"),            # Zendesk's sample ticket
     ]
@@ -33,8 +33,7 @@ def test_report_joins_tickets_with_approvals():
                     "approved_at": (NOW - timedelta(hours=2)).isoformat()}]
     r = ops.build_report(tickets, enrollments, FIELDS, NOW)
     assert r["tickets"] == 3
-    assert r["fin"] == {"involved": 2, "resolved": 1, "handed_off": 1}
-    assert r["fin_resolution_rate"] == 0.5
+    assert r["ai"] == {"handed_off": 1, "not_life_event": 1, "read": 2}
     assert r["life_events"] == 2 and r["approved"] == 1 and r["at_risk"] == 1
     assert r["median_time_to_approval"] == "3 h 00 min"
     assert r["checks_pass_rate"] == 0.5

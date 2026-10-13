@@ -1,6 +1,6 @@
 """Support Ops dashboard: reporting on life-event tickets, and monitoring of this service.
 
-Reporting reads Zendesk (tickets, fields, Fin's tags) and the core platform (when each enrollment was
+Reporting reads Zendesk (tickets, fields, the AI intake agent's tags) and the core platform (when each enrollment was
 approved). Monitoring comes from this service's own structured logs, counted in memory since the last
 deploy: request volume, errors, latency, webhook outcomes, and the state of each downstream system.
 In production, monitoring would ship to Datadog and reporting would live in Zendesk Explore or the
@@ -20,7 +20,8 @@ LIFE_EVENTS = {"qle_newborn": "Newborn", "qle_adoption": "Adoption", "qle_marria
 RESULTS = {"ai_intake_complete": "Checks passed", "ai_intake_incomplete": "Incomplete",
            "ai_fail_no_plan": "Failed: no active plan", "ai_fail_identity": "Failed: identity not confirmed",
            "ai_fail_window": "Failed: outside enrollment window"}
-FIN_TAGS = {"involved": "fin-involved", "resolved": "fin-resolved", "handed_off": "fin-routed-to-team"}
+# Tags the AI intake agent leaves: it read the email (done or skipped), and took a life event to handoff (done)
+AI_TAGS = {"handed_off": "ai_intake_done", "not_life_event": "ai_intake_skipped"}
 CACHE_S = 30
 
 
@@ -100,7 +101,8 @@ def build_report(tickets: list[dict], enrollments: list[dict], fields: dict[str,
     recent = [t for t in tickets if _ts(t["created_at"]) >= since
               and (t.get("via") or {}).get("channel") != "sample_ticket"]
 
-    fin = {k: sum(1 for t in recent if tag in (t.get("tags") or [])) for k, tag in FIN_TAGS.items()}
+    ai = {k: sum(1 for t in recent if tag in (t.get("tags") or [])) for k, tag in AI_TAGS.items()}
+    ai["read"] = ai["handed_off"] + ai["not_life_event"]
     rows, waits, results = [], [], Counter()
     for t in recent:
         life_event = _field(t, fields.get("life_event_type"))
@@ -117,15 +119,14 @@ def build_report(tickets: list[dict], enrollments: list[dict], fields: dict[str,
         at_risk = bool(due and open_ and not approved and due - now < timedelta(days=3))
         rows.append({"id": t["id"], "life_event": LIFE_EVENTS.get(life_event, life_event),
                      "channel": (t.get("via") or {}).get("channel", ""), "status": t.get("status"),
-                     "result": RESULTS.get(result, "Not checked yet"), "fin": FIN_TAGS["involved"] in (t.get("tags") or []),
+                     "result": RESULTS.get(result, "Not checked yet"), "ai": AI_TAGS["handed_off"] in (t.get("tags") or []),
                      "due_in": human(due - now) if due and due > now else ("overdue" if due else "–"),
                      "enrollment_id": _field(t, fields.get("enrollment_id")) or "",
                      "time_to_approval": human(wait), "at_risk": at_risk})
 
     median = timedelta(seconds=statistics.median(w.total_seconds() for w in waits)) if waits else None
     checked = sum(v for k, v in results.items() if k != "Not checked yet")
-    return {"days": days, "tickets": len(recent), "fin": fin,
-            "fin_resolution_rate": round(fin["resolved"] / fin["involved"], 3) if fin["involved"] else None,
+    return {"days": days, "tickets": len(recent), "ai": ai,
             "life_events": len(rows), "results": dict(results),
             "checks_pass_rate": round(results["Checks passed"] / checked, 3) if checked else None,
             "approved": len(waits), "median_time_to_approval": human(median),
@@ -168,10 +169,10 @@ def render(report: dict, mon: dict) -> str:
     if "error" in report:
         reporting = f'<p class="warn">{e(report["error"])}. Monitoring below is still live.</p>'
     else:
-        fin = report["fin"]
+        ai = report["ai"]
         cards = [
             (report["tickets"], f"Tickets, last {report['days']} days"),
-            (_pct(report["fin_resolution_rate"]), f"Resolved by Fin without a person ({fin['resolved']} of {fin['involved']})"),
+            (ai["handed_off"], f"Life events the AI agent took to handoff ({ai['read']} emails read)"),
             (report["life_events"], "Life-event tickets"),
             (_pct(report["checks_pass_rate"]), "Passed the automatic checks"),
             (report["approved"], "Enrollments approved"),
@@ -182,14 +183,14 @@ def render(report: dict, mon: dict) -> str:
                             f'<div class="l">{e(l)}</div></div>' for n, l in cards)
         rows = "".join(
             f'<tr class="{"risk" if r["at_risk"] else ""}"><td>#{r["id"]}</td><td>{e(r["life_event"])}</td>'
-            f'<td>{e(r["channel"])}</td><td>{"Yes" if r["fin"] else "No"}</td><td>{e(r["result"])}</td>'
+            f'<td>{e(r["channel"])}</td><td>{"Yes" if r["ai"] else "No"}</td><td>{e(r["result"])}</td>'
             f'<td>{e(r["due_in"])}</td><td>{e(r["status"] or "")}</td><td class="mono">{e(r["enrollment_id"])}</td>'
             f'<td>{e(r["time_to_approval"])}</td></tr>' for r in report["rows"]) or \
             '<tr><td colspan="9" class="empty">No life-event tickets yet</td></tr>'
         breakdown = " · ".join(f"{e(k)}: {v}" for k, v in sorted(report["results"].items())) or "–"
         reporting = (f'<div class="cards">{card_html}</div>'
                      f'<p class="sub">Check results: {breakdown}</p>'
-                     '<table><tr><th>Ticket</th><th>Life event</th><th>Channel</th><th>Fin</th><th>Checks</th>'
+                     '<table><tr><th>Ticket</th><th>Life event</th><th>Channel</th><th>AI agent</th><th>Checks</th>'
                      '<th>Deadline in</th><th>Status</th><th>Enrollment</th><th>Ticket to approval</th></tr>'
                      f'{rows}</table><p class="foot">From Zendesk and the core platform, {e(report["generated_at"])} UTC. '
                      'Refreshed every 30 seconds.</p>')
