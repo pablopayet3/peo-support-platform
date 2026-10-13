@@ -17,12 +17,20 @@ class NotAllowed(Exception):
     pass
 
 
+def deadline_text(deadline_iso: str, tz: str = "America/New_York") -> str:
+    """The deadline as a person reads it, in the company's time zone (11:59 pm on the last day)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    dl = datetime.fromisoformat(deadline_iso.replace("Z", "+00:00")).astimezone(ZoneInfo(tz))
+    return f"{dl.strftime('%B')} {dl.day}, {dl.year}, {dl.strftime('%I:%M %p').lstrip('0').lower()} company time"
+
+
 def _note_for(result: dict) -> str:
     lines = ["Automatic checks (integration service):"]
     for c in result["checks"]:
         lines.append(f"- {c['name'].replace('_', ' ')}: {'passed' if c['passed'] else 'FAILED'}, {c['detail']}")
     if result.get("deadline"):
-        lines.append(f"Enrollment deadline: {result['deadline']} (UTC)")
+        lines.append(f"Enrollment deadline: {deadline_text(result['deadline'])}")
     return "\n".join(lines)
 
 
