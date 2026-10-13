@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     # The model only classifies and extracts. Every action is taken by code.
     gemini_api_key: str = ""
-    model: str = "gemini-flash-lite-latest"
+    model: str = "gemini-2.5-flash"  # the lite "latest" alias timed out (504) under structured output
     llm_timeout_s: float = 15.0
 
     integration_base_url: str = "http://localhost:8712"
