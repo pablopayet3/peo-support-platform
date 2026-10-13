@@ -23,6 +23,7 @@ const RESULT = {
 };
 
 // Just-in-time guidance for each situation (the Spekit role). Source of truth: the Confluence procedure.
+// For the approval itself, the app also links to the Tango click-by-click guide (setting tango_url).
 const GUIDE = {
   ai_intake_complete: [
     'If the plan asks for proof of birth, check that the date on it matches the Event date.',
@@ -135,6 +136,7 @@ async function render(extra = '') {
     ${accountBox(summary && summary.account)}
     ${checks ? `<h3>What was checked</h3><div class="card"><ul class="checks">${checks}</ul></div>` : ''}
     <h3>What to do now</h3><div class="card"><ol class="guide">${guide}</ol>
+      ${S.tango_url && result === 'ai_intake_complete' && !approved ? `<a class="more" href="${esc(S.tango_url)}" target="_blank" rel="noopener">Step-by-step guide in Tango ↗</a>` : ''}
       ${S.procedure_url ? `<a class="more" href="${esc(S.procedure_url)}" target="_blank" rel="noopener">Full procedure in Confluence ↗</a>` : ''}</div>
     ${approved ? `<div class="card"><span class="badge ok">Approved</span> Enrollment <b>${esc(T.enrollmentId || '')}</b></div>` : ''}
     ${!approved && result === 'ai_intake_complete' ? `<h3>Approve the enrollment</h3><div class="card">
