@@ -53,6 +53,7 @@ def test_window_closed_still_returns_the_deadline(client):
     r = check(client, {"email": "tom.becker@bluebird.example"}, event_date="2026-09-01").json()
     assert r["ai_intake_result"] == "ai_fail_window"
     assert r["deadline"] == "2026-10-02T06:59:00Z"   # October 1, 11:59 pm Pacific
+    assert r["last_day"] == "2026-10-01"   # the date the note and replies show
 
 
 def test_two_companies_asks_which_one_then_completes(client):
@@ -199,3 +200,15 @@ def test_signing_secret_is_read_from_zendesk_when_only_the_webhook_id_is_set(cli
     raw, headers = signed({"ticket_id": 23}, secret="whsec-rotated")
     assert client.post("/v1/webhooks/zendesk", content=raw, headers=headers).status_code == 202
     assert fake_zd.secret_reads == 2
+
+
+def test_note_words_the_deadline_in_company_time_and_asks_for_the_company():
+    from integration.workflows import _note_for
+    note = _note_for({"failed_check": "none", "last_day": "2026-10-01", "deadline": "2026-10-02T06:59:00Z",
+                      "checks": [{"name": "identity", "passed": True, "detail": "the employee themself"}]})
+    assert "Enrollment deadline: October 1, 2026, 11:59 pm company time" in note
+    note = _note_for({"failed_check": "company_unclear", "checks": [],
+                      "company_options": [{"company_id": "C-1003", "company_name": "Harbor & Pine Accounting"},
+                                          {"company_id": "C-1002", "company_name": "Bluebird Design Studio"}]})
+    assert "needs input" in note and "Harbor & Pine Accounting and Bluebird Design Studio" in note
+    assert "FAILED" not in note

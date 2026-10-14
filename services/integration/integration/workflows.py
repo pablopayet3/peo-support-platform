@@ -17,20 +17,22 @@ class NotAllowed(Exception):
     pass
 
 
-def deadline_text(deadline_iso: str, tz: str = "America/New_York") -> str:
-    """The deadline as a person reads it, in the company's time zone (11:59 pm on the last day)."""
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-    dl = datetime.fromisoformat(deadline_iso.replace("Z", "+00:00")).astimezone(ZoneInfo(tz))
-    return f"{dl.strftime('%B')} {dl.day}, {dl.year}, {dl.strftime('%I:%M %p').lstrip('0').lower()} company time"
+def deadline_text(last_day: str) -> str:
+    """The deadline as a person reads it: 11:59 pm on the last day, in the company's own time zone."""
+    d = date.fromisoformat(last_day)
+    return f"{d.strftime('%B')} {d.day}, {d.year}, 11:59 pm company time"
 
 
 def _note_for(result: dict) -> str:
     lines = ["Automatic checks (integration service):"]
+    if result.get("failed_check") == "company_unclear":
+        names = " and ".join(o["company_name"] for o in result.get("company_options", []))
+        lines.append(f"- identity: needs input. This person works for {names}. Ask which company the request is about.")
+        return "\n".join(lines)
     for c in result["checks"]:
         lines.append(f"- {c['name'].replace('_', ' ')}: {'passed' if c['passed'] else 'FAILED'}, {c['detail']}")
-    if result.get("deadline"):
-        lines.append(f"Enrollment deadline: {deadline_text(result['deadline'])}")
+    if result.get("last_day"):
+        lines.append(f"Enrollment deadline: {deadline_text(result['last_day'])}")
     return "\n".join(lines)
 
 

@@ -1,7 +1,6 @@
 """Customer-facing replies are fixed templates, reviewed once, not generated text.
 Wording about benefits is a compliance matter, so the model never writes it."""
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import date
 
 EVENT_WORDS = {"newborn": "your new baby", "adoption": "your adopted child", "marriage": "your spouse",
                "loss_of_coverage": "your coverage change"}
@@ -25,16 +24,19 @@ def ask_company(options: list[dict]) -> str:
     return f"Thanks. You're connected to more than one company with us. Which company is this request about: {names}?"
 
 
-def deadline_text(deadline_iso: str, tz: str = "America/New_York") -> str:
-    """The deadline as a person reads it, in the company's time zone (11:59 pm on the last day)."""
-    dl = datetime.fromisoformat(deadline_iso.replace("Z", "+00:00")).astimezone(ZoneInfo(tz))
-    return f"{dl.strftime('%B')} {dl.day}, {dl.year}, {dl.strftime('%I:%M %p').lstrip('0').lower()} company time"
+def _day(last_day: str) -> str:
+    d = date.fromisoformat(last_day)
+    return f"{d.strftime('%B')} {d.day}, {d.year}"
 
 
-def handed_off(event_type: str, complete: bool, deadline_iso: str | None, tz: str = "America/New_York") -> str:
-    if complete and deadline_iso:
-        dl = datetime.fromisoformat(deadline_iso.replace("Z", "+00:00")).astimezone(ZoneInfo(tz))
-        when = dl.strftime("%B %-d, %Y")
+def deadline_text(last_day: str) -> str:
+    """The deadline as a person reads it: 11:59 pm on the last day, in the company's own time zone."""
+    return f"{_day(last_day)}, 11:59 pm company time"
+
+
+def handed_off(event_type: str, complete: bool, last_day: str | None) -> str:
+    if complete and last_day:
+        when = _day(last_day)
         return (f"Thank you. Your request to add {EVENT_WORDS[event_type]} to your plan is now with our benefits team. "
                 f"The deadline to enroll is {when}, and we'll make sure it's handled well before then. "
                 "A benefits specialist will review it and confirm by email. If we need a document, we'll ask.")

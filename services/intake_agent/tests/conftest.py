@@ -72,7 +72,7 @@ class FakeIntegration:
                                                  {"company_id": "C-1002", "company_name": "Bluebird Design Studio"}]})
         return httpx.Response(200, json={
             "failed_check": "none", "ai_intake_result": "ai_intake_complete", "eligible": True,
-            "employee_id": "E-1001", "deadline": "2026-11-06T04:59:00Z",
+            "employee_id": "E-1001", "deadline": "2026-11-06T04:59:00Z", "last_day": "2026-11-05",
             "checks": [{"name": "identity", "passed": True, "detail": "the employee themself"},
                        {"name": "active_plan", "passed": True, "detail": "Northwind Gold PPO"},
                        {"name": "enrollment_window", "passed": True, "detail": "open until 2026-11-05"}]})

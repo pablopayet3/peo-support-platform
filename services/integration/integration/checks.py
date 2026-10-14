@@ -39,13 +39,15 @@ class CheckResult:
     employee_id: str | None = None
     company_name: str | None = None
     deadline: str | None = None
+    last_day: str | None = None
     checks: list[dict] = field(default_factory=list)
     company_options: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         out = {"failed_check": self.failed_check, "ai_intake_result": RESULT_FOR[self.failed_check],
                "eligible": self.failed_check == "none", "employee_id": self.employee_id,
-               "company_name": self.company_name, "deadline": self.deadline, "checks": self.checks}
+               "company_name": self.company_name, "deadline": self.deadline, "last_day": self.last_day,
+               "checks": self.checks}
         if self.company_options:
             out["company_options"] = self.company_options
         return out
@@ -104,7 +106,7 @@ async def run_qle_check(core: CoreClient, req: CheckRequest, rid: str) -> CheckR
 
     # Step 4: the enrollment window
     window = await core.evaluate_qle(m["employee_id"], req.event_type, req.event_date.isoformat(), rid)
-    res.deadline = window["deadline"]
+    res.deadline, res.last_day = window["deadline"], window["last_day"]
     if not window["window_open"]:
         return fail("enrollment_window", "window_closed", f"the window closed on {window['last_day']}")
     res.checks.append({"name": "enrollment_window", "passed": True, "detail": f"open until {window['last_day']}"})

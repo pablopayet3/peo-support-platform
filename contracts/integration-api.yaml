@@ -245,6 +245,10 @@ components:
           type: [string, 'null']
           format: date-time
           description: 11:59 pm on the last day, in the company's time zone, as UTC.
+        last_day:
+          type: [string, 'null']
+          format: date
+          description: The last day of the enrollment window, as the company sees it. Use it to word the deadline.
         checks:
           type: array
           items:
