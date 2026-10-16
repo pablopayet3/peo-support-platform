@@ -15,7 +15,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, R
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
-from . import ops, provisioning, workflows
+from . import context, ops, provisioning, workflows
 from .checks import CheckRequest, Contact, run_qle_check
 from .config import get_settings
 from .core_client import Conflict, CoreClient, NotFound
@@ -158,6 +158,21 @@ async def check_life_event(body: QleCheckIn, request_id: str = Depends(rid), cli
     log.info("qle check", extra={"extra_fields": {"request_id": request_id, "caller": caller.client,
                                                   "result": result.failed_check, "employee_id": result.employee_id}})
     return result.to_dict()
+
+
+class RequestContextIn(BaseModel):
+    requester: ContactIn
+    topic: Literal["benefits_question", "coverage_failure", "billing"]
+
+
+@app.post("/v1/requests/context", tags=["Checks"])
+async def request_context(body: RequestContextIn, request_id: str = Depends(rid), client: CoreClient = Depends(core),
+                          caller: Caller = Depends(require_scope("checks:run"))):
+    """Who is writing, and the facts for this kind of request. Read-only; changes nothing anywhere."""
+    out = await context.request_context(client, Contact(**body.requester.model_dump()), body.topic, request_id)
+    log.info("request context", extra={"extra_fields": {"request_id": request_id, "caller": caller.client,
+                                                        "topic": body.topic, "verified": out["verified"]}})
+    return out
 
 
 @app.get("/v1/employees/{employee_id}/summary", tags=["Employees"])

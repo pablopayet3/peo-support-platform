@@ -18,7 +18,8 @@ class FakeZendesk:
         self.tickets, self.comments, self.updates = {}, {}, []
         self.users = {1: {"id": 1, "email": "maria.lopez@acmebakery.example"},
                       2: {"id": 2, "email": "daniel.kim@acmebakery.example"},
-                      3: {"id": 3, "email": "sam.rivera@harborpine.example"}}
+                      3: {"id": 3, "email": "sam.rivera@harborpine.example"},
+                      4: {"id": 4, "email": "stranger@mailbox.example"}}
 
     def new_ticket(self, tid, requester, text):
         self.tickets[tid] = {"id": tid, "requester_id": requester, "tags": [], "custom_fields": []}
@@ -65,6 +66,8 @@ class FakeIntegration:
         body = json.loads(req.content)
         self.calls.append(body)
         email = body["requester"].get("email")
+        if req.url.path == "/v1/requests/context":
+            return httpx.Response(200, json=self.context(email, body["topic"]))
         if email == "sam.rivera@harborpine.example" and "company_id" not in body:
             return httpx.Response(200, json={"failed_check": "company_unclear", "ai_intake_result": "ai_intake_incomplete",
                                              "checks": [], "company_options": [
@@ -76,6 +79,31 @@ class FakeIntegration:
             "checks": [{"name": "identity", "passed": True, "detail": "the employee themself"},
                        {"name": "active_plan", "passed": True, "detail": "Northwind Gold PPO"},
                        {"name": "enrollment_window", "passed": True, "detail": "open until 2026-11-05"}]})
+
+
+    @staticmethod
+    def context(email, topic):
+        gold = {"plan_name": "Northwind Gold PPO", "carrier": "Atlas Health", "coverage_level": "employee_spouse",
+                "status": "active", "plan_year": 2026, "deductible": {"individual": 500, "family": 1000},
+                "out_of_pocket_max": {"individual": 3000, "family": 6000}}
+        people = {"maria.lopez@acmebakery.example": ("Maria Lopez", "employee"),
+                  "daniel.kim@acmebakery.example": ("Daniel Kim", "admin")}
+        if email not in people:
+            return {"topic": topic, "verified": False, "name": None, "memberships": [],
+                    "notes": ["The sender's email or phone is not on file."]}
+        name, role = people[email]
+        m = {"employee_id": "E-1001", "company_id": "C-1001", "company_name": "Acme Bakery", "role": role}
+        out = {"topic": topic, "verified": True, "name": name, "memberships": [m], "notes": []}
+        if topic != "billing":
+            m["medical"] = gold
+        else:
+            out["is_admin"] = role == "admin"
+            out["billing"] = [{"company_id": "C-1001", "company_name": "Acme Bakery", "overpaid_invoices": [
+                {"invoice_id": "INV-2026-10-001", "period": "2026-10", "amount": 8450.0, "status": "paid",
+                 "overpaid_by": 8450.0, "payments": [{"payment_id": "PAY-1001", "amount": 8450.0, "paid_on": "2026-10-01"},
+                                                     {"payment_id": "PAY-1002", "amount": 8450.0, "paid_on": "2026-10-01"}]}]}] \
+                if role == "admin" else []
+        return out
 
 
 @pytest.fixture()

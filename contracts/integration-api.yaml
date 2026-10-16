@@ -60,6 +60,58 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/requests/context:
+    post:
+      tags: [Checks]
+      operationId: requestContext
+      summary: Who is writing, and the facts for one kind of request (read-only)
+      description: |
+        Used by the AI agent for requests outside the life-event flow (case study, Part 1 and Part 3).
+        It changes nothing anywhere; the caller decides what to do with the answer.
+        - benefits_question: the sender's plan with its deductible and out-of-pocket maximum (tier 1, automated).
+        - coverage_failure: every membership and its coverage, so an escalation starts with the facts (tier 3).
+        - billing: invoices paid more than once, only for companies where the sender is an admin.
+        An unknown sender gets `verified: false` and no account details. Scope checks:run.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requester, topic]
+              properties:
+                requester: { $ref: '#/components/schemas/Contact' }
+                topic: { type: string, enum: [benefits_question, coverage_failure, billing] }
+      responses:
+        '200':
+          description: What is known. Read `verified` first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [topic, verified, memberships, notes]
+                properties:
+                  topic: { type: string }
+                  verified: { type: boolean, description: The sender is on file with an active employment }
+                  name: { type: [string, 'null'] }
+                  is_admin: { type: boolean, description: Only for billing }
+                  memberships:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        employee_id: { type: string }
+                        company_id: { type: string }
+                        company_name: { type: string }
+                        role: { type: string, enum: [employee, admin] }
+                        medical: { type: [object, 'null'], description: Only for benefits_question and coverage_failure }
+                  billing: { type: array, items: { type: object }, description: Only for billing; invoices paid more than once }
+                  notes: { type: array, items: { type: string } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /v1/employees/{employee_id}/summary:
     get:
       tags: [Employees]

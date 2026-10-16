@@ -212,3 +212,28 @@ def test_note_words_the_deadline_in_company_time_and_asks_for_the_company():
                                           {"company_id": "C-1002", "company_name": "Bluebird Design Studio"}]})
     assert "needs input" in note and "Harbor & Pine Accounting and Bluebird Design Studio" in note
     assert "FAILED" not in note
+
+
+def test_context_for_a_deductible_question_returns_the_plan(client):
+    r = client.post("/v1/requests/context", headers=AGENT, json={
+        "requester": {"email": "maria.lopez@acmebakery.example"}, "topic": "benefits_question"}).json()
+    assert r["verified"] and r["name"] == "Maria Lopez"
+    med = r["memberships"][0]["medical"]
+    assert med["plan_name"] == "Northwind Gold PPO" and med["deductible"] == {"individual": 500, "family": 1000}
+
+
+def test_context_for_an_unknown_sender_is_not_verified(client):
+    r = client.post("/v1/requests/context", headers=AGENT, json={
+        "requester": {"email": "stranger@nowhere.example"}, "topic": "billing"}).json()
+    assert r["verified"] is False and r["memberships"] == []
+
+
+def test_context_for_billing_finds_the_double_payment_for_an_admin_only(client):
+    admin = client.post("/v1/requests/context", headers=AGENT, json={
+        "requester": {"email": "daniel.kim@acmebakery.example"}, "topic": "billing"}).json()
+    assert admin["is_admin"] is True
+    inv = admin["billing"][0]["overpaid_invoices"][0]
+    assert inv["invoice_id"] == "INV-2026-10-001" and inv["overpaid_by"] == 8450.0
+    employee = client.post("/v1/requests/context", headers=AGENT, json={
+        "requester": {"email": "maria.lopez@acmebakery.example"}, "topic": "billing"}).json()
+    assert employee["is_admin"] is False and employee["billing"] == []

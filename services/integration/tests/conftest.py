@@ -11,7 +11,7 @@ os.environ.update({
     "CORE_MIN_KEY_LENGTH": "6",
     "INT_MIN_KEY_LENGTH": "6",
     "CORE_API_KEYS": json.dumps({"core-key": {"client": "integration-service",
-                                              "scopes": ["identity:read", "benefits:read", "enrollments:write"]}}),
+                                              "scopes": ["identity:read", "benefits:read", "enrollments:write", "billing:read"]}}),
     "INT_API_KEYS": json.dumps({
         "agent-key": {"client": "intake-agent", "scopes": ["checks:run"]},
         "sidebar-key": {"client": "zendesk-sidebar-app", "scopes": ["checks:run", "employees:read", "enrollments:approve"]},

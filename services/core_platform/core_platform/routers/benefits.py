@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .. import audit
+from .. import audit, plans
 from ..db import get_db
 from ..models import Coverage, Dependent, Employee, Enrollment, IdempotencyKey, QleRule
 from ..rules import DEFAULT_WINDOWS, enrollment_window, today_in
@@ -43,7 +43,7 @@ def get_coverage(employee_id: str, db: Session = Depends(get_db),
     return {
         "employee_id": e.id,
         "medical": None if c is None else {"plan_id": c.plan_id, "plan_name": c.plan.name, "carrier": c.plan.carrier,
-                                           "coverage_level": c.level, "status": c.status},
+                                           "coverage_level": c.level, "status": c.status, **plans.details(c.plan_id)},
         "dependents": [{"dependent_id": d.id, "name": d.name, "relationship": d.relationship_to_employee,
                         "status": d.status} for d in e.dependents],
         "open_life_events": [{"enrollment_id": en.id, "event_type": en.event_type, "status": en.status}

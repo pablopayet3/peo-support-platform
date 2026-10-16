@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
 from .db import Base, SessionLocal, engine
-from .routers import admin, benefits, identity
+from .routers import admin, benefits, billing, identity
 from .seed import apply_demo_email_overrides, seed
 
 
@@ -82,4 +82,5 @@ def healthz():
 
 app.include_router(identity.router)
 app.include_router(benefits.router)
+app.include_router(billing.router)
 app.include_router(admin.router)

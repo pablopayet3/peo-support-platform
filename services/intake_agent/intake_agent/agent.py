@@ -21,6 +21,9 @@ CONFIRMING, WAIT_DATE, WAIT_COMPANY = "ai_intake_confirming", "ai_intake_waiting
 DONE, SKIPPED = "ai_intake_done", "ai_intake_skipped"
 WAITING = [CONFIRMING, WAIT_DATE, WAIT_COMPANY]
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
+# The three levels of handling from the case study (Part 1). Each is a tag, shown on the ticket by the
+# "AI handling" field: automate the reversible, gate the irreversible, escalate the harmful.
+AUTOMATED, HUMAN_GATE, HUMAN_LED = "ai_tier_automated", "ai_tier_human_gate", "ai_tier_human_led"
 
 
 @dataclass
@@ -32,6 +35,7 @@ class Outcome:
     confidence: float = 0.0
     band: str = ""
     model: str = ""
+    tier: str = ""  # automated, human approval or human-led (the case study's three levels)
 
 
 def _conversation(comments: list[dict], requester_id: int) -> tuple[str, str]:
@@ -76,6 +80,17 @@ async def process(ticket_id: int, zd: Zendesk, integ: Integration, extractor: Ex
 
         if ex.prompt_injection:
             return await skip("the message contains instructions aimed at the AI")
+
+        if first_look and ex.confidence >= s.medium_confidence:
+            # Harm may already be happening: a person takes over at once, whatever else the message asks
+            if ex.coverage_failure:
+                return await escalate_coverage_failure(zd, integ, ticket_id, requester, ex, request_id, triage)
+            # Money going back out is irreversible: Payments decides, and only for a verified admin
+            if ex.intent == "billing" and ex.billing_request == "money_correction":
+                return await route_money_correction(zd, integ, ticket_id, requester, ex, request_id, triage)
+            # A factual answer that changes nothing: the AI answers on its own, but only when it is sure
+            if ex.intent == "benefits_question" and ex.asks_deductible and ex.confidence >= s.high_confidence:
+                return await answer_deductible(zd, integ, ticket_id, requester, ex, request_id, triage)
 
         # Step 1: is this a life-event request? (confidence thresholds, case study section 3)
         if WAIT_DATE in tags or WAIT_COMPANY in tags:
@@ -161,6 +176,98 @@ async def handoff(zd: Zendesk, ticket_id: int, event_type: str, event_date: date
     await zd.update(ticket_id, fields=fields, comment="\n".join(lines), **kwargs)
     complete = ai_result == "ai_intake_complete"
     await zd.update(ticket_id, comment=replies.handed_off(event_type, complete, last_day), public=True)
-    await zd.add_tags(ticket_id, [DONE])
+    await zd.add_tags(ticket_id, [DONE, HUMAN_GATE])
     await zd.remove_tags(ticket_id, WAITING)
-    return Outcome("handed_off", ai_result)
+    return Outcome("handed_off", ai_result, tier=HUMAN_GATE)
+
+
+def _contact(requester: dict) -> dict:
+    return {"email": requester["email"]} if requester.get("email") else {"phone": requester.get("phone")}
+
+
+async def _context(integ: Integration, requester: dict, topic: str, request_id: str) -> dict | None:
+    try:
+        return await integ.context({"requester": _contact(requester), "topic": topic}, request_id)
+    except Integration.Unavailable:
+        return None
+
+
+def _who(ctx: dict | None) -> list[str]:
+    if ctx is None:
+        return ["Sender: could not be checked (a system did not answer). Verify by hand."]
+    if not ctx["verified"]:
+        return ["Sender: NOT verified. " + " ".join(ctx["notes"])]
+    lines = [f"Sender: {ctx['name']}, verified against the system of record."]
+    for m in ctx["memberships"]:
+        line = f"- {m['company_name']}: {m['role']}"
+        if "medical" in m:
+            med = m["medical"]
+            line += f", medical: {med['plan_name']} ({med['status']})" if med else ", medical: no active plan"
+        lines.append(line)
+    lines += [n for n in ctx["notes"]]
+    return lines
+
+
+async def escalate_coverage_failure(zd: Zendesk, integ: Integration, ticket_id: int, requester: dict, ex,
+                                    request_id: str, triage: str) -> Outcome:
+    """Tier 3. The AI gathers the facts and steps aside. Trigger 10-ESC routes it to Benefits Escalation, urgent."""
+    ctx = await _context(integ, requester, "coverage_failure", request_id)
+    lines = [f"AI support agent summary (request {request_id}):", triage,
+             "Handling: human-led. Possible coverage failure. The AI did not try to resolve it.",
+             ex.summary or "-"] + _who(ctx)
+    await zd.update(ticket_id, comment="\n".join(lines))
+    await zd.add_tags(ticket_id, ["ai_coverage_failure", HUMAN_LED, DONE])
+    await zd.update(ticket_id, comment=replies.escalated(), public=True)
+    return Outcome("escalated", "coverage failure", tier=HUMAN_LED)
+
+
+async def route_money_correction(zd: Zendesk, integ: Integration, ticket_id: int, requester: dict, ex,
+                                 request_id: str, triage: str) -> Outcome:
+    """Case study, Part 3. Trigger 15-PAY routes it to Payments, urgent, verified or not. No refund until verified."""
+    ctx = await _context(integ, requester, "billing", request_id)
+    verified_admin = bool(ctx and ctx["verified"] and ctx.get("is_admin"))
+    lines = [f"AI support agent summary (request {request_id}):", triage,
+             "Handling: a person decides. Request type: money correction.", ex.summary or "-"] + _who(ctx)
+    for co in (ctx or {}).get("billing", []):
+        for inv in co["overpaid_invoices"]:
+            pays = ", ".join(f"{p['payment_id']} {replies._usd(p['amount'])} on {p['paid_on']}" for p in inv["payments"])
+            lines.append(f"Billing record: {co['company_name']} invoice {inv['invoice_id']} ({inv['period']}, "
+                         f"{replies._usd(inv['amount'])}) was paid {len(inv['payments'])} times: {pays}. "
+                         f"Overpaid by {replies._usd(inv['overpaid_by'])}.")
+    if not verified_admin:
+        lines.append("Do not issue any refund until the sender is verified as an admin of the company. "
+                     "A verification request was sent to the customer.")
+    await zd.update(ticket_id, comment="\n".join(lines))
+    tags = ["ai_request_money_correction", HUMAN_GATE, DONE] + ([] if verified_admin else ["ai_sender_unverified"])
+    await zd.add_tags(ticket_id, tags)
+    await zd.update(ticket_id, public=True,
+                    comment=replies.payments_received() if verified_admin else replies.verify_first(already_started=True))
+    return Outcome("routed_to_payments", "verified admin" if verified_admin else "sender not verified", tier=HUMAN_GATE)
+
+
+async def answer_deductible(zd: Zendesk, integ: Integration, ticket_id: int, requester: dict, ex,
+                            request_id: str, triage: str) -> Outcome:
+    """Tier 1. Read-only and reversible, so the AI answers and solves the ticket. Any doubt goes to a person."""
+    ctx = await _context(integ, requester, "benefits_question", request_id)
+    header = [f"AI support agent summary (request {request_id}):", triage]
+    if ctx is None:
+        await zd.update(ticket_id, comment="\n".join(header + ["The plan could not be looked up. Normal routing applies."]))
+        await zd.add_tags(ticket_id, [SKIPPED])
+        return Outcome("skipped", "plan lookup unavailable")
+    if not ctx["verified"]:
+        await zd.update(ticket_id, comment="\n".join(header + ["Handling: automated, but the sender is not verified, "
+                                                               "so no plan details were shared."] + _who(ctx)))
+        await zd.add_tags(ticket_id, [AUTOMATED, "ai_sender_unverified", DONE])
+        await zd.update(ticket_id, comment=replies.verify_first(), public=True)
+        return Outcome("asked_to_verify", "sender not verified", tier=AUTOMATED)
+    plans = [m for m in ctx["memberships"] if m.get("medical") and m["medical"].get("deductible")]
+    if len(plans) != 1:
+        why = "no active medical plan" if not plans else "plans with more than one company"
+        await zd.update(ticket_id, comment="\n".join(header + [f"Not answered automatically: {why}. Normal routing applies."] + _who(ctx)))
+        await zd.add_tags(ticket_id, [SKIPPED])
+        return Outcome("skipped", why)
+    await zd.update(ticket_id, comment="\n".join(header + ["Handling: fully automated. Answered from the plan documents."] + _who(ctx)))
+    await zd.add_tags(ticket_id, [AUTOMATED, "ai_answered", DONE])
+    first = (ctx["name"] or "there").split()[0]
+    await zd.update(ticket_id, comment=replies.deductible(first, plans[0]["medical"]), public=True, status="solved")
+    return Outcome("answered", "deductible", tier=AUTOMATED)

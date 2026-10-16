@@ -183,6 +183,42 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Enrollment' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /v1/companies/{company_id}/billing:
+    get:
+      operationId: companyBilling
+      summary: A company's invoices and payments, flagging any invoice paid more than once
+      description: Scope billing:read. Every read is written to the audit log.
+      parameters:
+        - { in: path, name: company_id, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Invoices, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  company_id: { type: string }
+                  invoices:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        invoice_id: { type: string }
+                        period: { type: string }
+                        amount: { type: number }
+                        status: { type: string }
+                        payments:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              payment_id: { type: string }
+                              amount: { type: number }
+                              paid_on: { type: string, format: date }
+                        overpaid_by: { type: number, description: More than zero when the invoice was paid more than once }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer }
@@ -246,6 +282,9 @@ components:
             carrier: { type: string }
             coverage_level: { type: string }
             status: { type: string }
+            plan_year: { type: [integer, 'null'] }
+            deductible: { type: [object, 'null'], description: 'In-network, in US dollars: individual and family' }
+            out_of_pocket_max: { type: [object, 'null'], description: 'In-network, in US dollars: individual and family' }
         dependents:
           type: array
           items:

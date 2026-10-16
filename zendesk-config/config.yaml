@@ -29,10 +29,19 @@ ticket_fields:
       - { name: Withdrawn, value: qle_withdrawn }
   - title: Enrollment ID
     type: text
+  - title: AI handling
+    # Set by the AI agent's tags. The three levels from the case study: automate the reversible,
+    # gate the irreversible, escalate the harmful.
+    type: tagger
+    options:
+      - { name: Automated, value: ai_tier_automated }
+      - { name: Human approval, value: ai_tier_human_gate }
+      - { name: Human-led, value: ai_tier_human_led }
 
 groups:
   - Benefits Ops
   - Benefits Escalation
+  - Payments
 
 webhooks:
   # Zendesk generates each signing secret. Copy it once into the service's variables
@@ -64,6 +73,26 @@ triggers:
       - { field: current_tags, operator: includes, value: ai_intake_waiting_company }
     actions:
       - { field: notification_webhook, value: ["{webhook:Email intake agent}", '{"ticket_id": "{{ticket.id}}"}'] }
+  - title: "10-ESC | Coverage failure | Benefits Escalation, Urgent"
+    description: Harm may already be happening. A person takes over at once; the AI only gathered the facts.
+    all:
+      - { field: current_tags, operator: includes, value: ai_coverage_failure }
+      - { field: current_tags, operator: not_includes, value: esc_routed }
+    actions:
+      - { field: group_id, value: "{group:Benefits Escalation}" }
+      - { field: priority, value: urgent }
+      - { field: ticket_type_id, value: incident }
+      - { field: current_tags, value: esc_routed }
+      - { field: notification_group, value: ["{group:Benefits Escalation}", "Coverage failure: {{ticket.title}}", "Possible coverage failure on ticket {{ticket.id}}. The AI agent's note lists who wrote and their coverage.\n{{ticket.link}}"] }
+  - title: "15-PAY | Money correction | Payments, Urgent"
+    description: A double charge, overcharge or refund. Urgent whether or not the sender is verified; no refund until they are.
+    all:
+      - { field: current_tags, operator: includes, value: ai_request_money_correction }
+      - { field: current_tags, operator: not_includes, value: pay_routed }
+    actions:
+      - { field: group_id, value: "{group:Payments}" }
+      - { field: priority, value: urgent }
+      - { field: current_tags, value: pay_routed }
   - title: "20-URG | Life event, AI check failed | Benefits Ops, Urgent"
     description: A check failed. The ticket goes to Benefits Ops as urgent and the group is notified.
     all:

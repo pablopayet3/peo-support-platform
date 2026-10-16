@@ -34,6 +34,44 @@ def deadline_text(last_day: str) -> str:
     return f"{_day(last_day)}, 11:59 pm company time"
 
 
+LEVEL_WORDS = {"employee_only": "employee only", "employee_spouse": "employee and spouse",
+               "employee_children": "employee and children", "family": "family"}
+
+
+def _usd(n) -> str:
+    return f"${n:,.0f}"
+
+
+def deductible(first_name: str, plan: dict) -> str:
+    """Tier 1, fully automated: a factual answer from the plan documents. Nothing changes anywhere."""
+    d, o = plan["deductible"], plan["out_of_pocket_max"]
+    level = LEVEL_WORDS.get(plan["coverage_level"], plan["coverage_level"].replace("_", " "))
+    return (f"Hi {first_name}, you're enrolled in the {plan['plan_name']} plan ({level} coverage) with {plan['carrier']}. "
+            f"For the {plan['plan_year']} plan year, the in-network deductible is {_usd(d['individual'])} per person "
+            f"and {_usd(d['family'])} per family. The out-of-pocket maximum is {_usd(o['individual'])} per person "
+            f"and {_usd(o['family'])} per family. Your carrier's member portal shows how much you've already paid "
+            "toward them this year. If anything here doesn't look right, just reply and a benefits specialist will help.")
+
+
+def verify_first(already_started: bool = False) -> str:
+    lead = "Thanks for reaching out. Our team has already started looking into this. " if already_started else "Thanks for reaching out. "
+    return (lead + "To protect your account, we can only share or change account details once we've confirmed who you are. "
+            "Please log in to your Northwind account and send your request from there, or reply from the email "
+            "address we have on file for you.")
+
+
+def escalated() -> str:
+    """Tier 3, human-led: the AI acknowledges and steps aside. It never tries to fix a coverage failure."""
+    return ("Thank you for letting us know. We're treating this as urgent, and a benefits specialist is taking over "
+            "your case now. If you or a family member need care or a prescription today, reply with the best phone "
+            "number to reach you and we'll call you back.")
+
+
+def payments_received() -> str:
+    return ("Thank you for flagging this. We've passed it to our Payments team as urgent, and they're reviewing the "
+            "charges now. We'll confirm the correction with you by email.")
+
+
 def handed_off(event_type: str, complete: bool, last_day: str | None) -> str:
     if complete and last_day:
         when = _day(last_day)

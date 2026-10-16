@@ -7,7 +7,7 @@ os.environ["CORE_ADMIN_PASSWORD"] = "test-admin"
 os.environ["CORE_MIN_KEY_LENGTH"] = "8"
 os.environ["CORE_API_KEYS"] = json.dumps({
     "key-integration": {"client": "integration-service",
-                        "scopes": ["identity:read", "benefits:read", "enrollments:write"]},
+                        "scopes": ["identity:read", "benefits:read", "enrollments:write", "billing:read"]},
     "key-readonly": {"client": "reporting", "scopes": ["benefits:read"]},
 })
 

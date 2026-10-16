@@ -11,14 +11,26 @@ decisions: deque = deque(maxlen=200)
 
 ACTIONS = {"handed_off": "Handed off to Benefits Ops", "asked_to_confirm": "Asked the customer to confirm",
            "asked_for_date": "Asked for the date", "asked_for_company": "Asked which company",
+           "answered": "Answered on its own", "asked_to_verify": "Asked the sender to verify",
+           "escalated": "Escalated to a person, urgent", "routed_to_payments": "Sent to Payments, urgent",
            "skipped": "Left to normal routing", "ignored": "Already handled"}
+TIERS = {"ai_tier_automated": ("Automated", "high"), "ai_tier_human_gate": ("Human approval", "medium"),
+         "ai_tier_human_led": ("Human-led", "low")}
 
 
 def record(ticket_id: int, out, ms: float, request_id: str) -> None:
     decisions.appendleft({"at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), "ticket_id": ticket_id,
                           "intent": out.intent, "event_type": out.event_type, "confidence": round(out.confidence, 2),
                           "band": out.band, "action": out.action, "detail": out.detail, "model": out.model,
+                          "tier": getattr(out, "tier", ""),
                           "ms": round(ms), "request_id": request_id})
+
+
+def _tier(tier: str | None) -> str:
+    if tier not in TIERS:
+        return '<span class="muted">-</span>'
+    label, cls = TIERS[tier]
+    return f'<span class="pill {cls}">{label}</span>'
 
 
 def summary() -> dict:
@@ -46,8 +58,9 @@ def render(settings, model_name: str) -> str:
         f'<td>{e(d["intent"].replace("_", " "))}{(" · " + e(d["event_type"].replace("_", " "))) if d["event_type"] and d["intent"] == "life_event" else ""}</td>'
         f'<td><span class="pill {e(d["band"])}">{d["confidence"]:.2f} {e(d["band"])}</span></td>'
         f'<td>{e(ACTIONS.get(d["action"], d["action"]))}{(" · " + e(d["detail"])) if d["detail"] and d["action"] == "handed_off" else ""}</td>'
+        f'<td>{_tier(d.get("tier"))}</td>'
         f'<td class="mono">{e(d["model"])}</td><td class="mono">{d["ms"]} ms</td></tr>'
-        for d in s["recent"]) or '<tr><td colspan="7" class="muted center">No emails processed since the last deploy</td></tr>'
+        for d in s["recent"]) or '<tr><td colspan="8" class="muted center">No emails processed since the last deploy</td></tr>'
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="15"><title>AI support agent console · Northwind PEO</title><style>
 :root{{--bg:#f6f5fa;--panel:#fff;--ink:#1f1b2e;--muted:#635d78;--line:#e4e0ee;--brand:#4b2a86;--hi:#1f7a45;--hi-bg:#e7f5ec;
@@ -76,6 +89,6 @@ th,td{{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}}th{
 <div class="fact"><b>{s["handed_off"]}</b><span>Life events taken to handoff</span></div></div>
 <h2>Confidence bands: what the agent may do</h2>{bands}
 <h2>Intents seen</h2><div>{intents}</div>
-<h2>Latest decisions</h2><div class="tbl"><table><tr><th>Time (UTC)</th><th>Ticket</th><th>Intent</th><th>Confidence</th><th>Action</th><th>Model</th><th>Time taken</th></tr>{rows}</table></div>
+<h2>Latest decisions</h2><div class="tbl"><table><tr><th>Time (UTC)</th><th>Ticket</th><th>Intent</th><th>Confidence</th><th>Action</th><th>Handling</th><th>Model</th><th>Time taken</th></tr>{rows}</table></div>
 <p class="muted">The model only classifies and extracts. Every action (questions, checks, writing to Zendesk) is taken by code, within these bands. The agent can never approve an enrollment.</p>
 </main></body></html>"""

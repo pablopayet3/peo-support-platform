@@ -125,3 +125,19 @@ def test_list_enrollments_for_reporting(client):
     assert r.status_code == 200
     rows = r.json()["enrollments"]
     assert all({"enrollment_id", "approved_at", "source_ref"} <= set(e) for e in rows)
+
+
+def test_coverage_includes_plan_deductible_and_out_of_pocket_max(client):
+    medical = client.get("/v1/employees/E-1001/coverage", headers=INTEGRATION).json()["medical"]
+    assert medical["deductible"] == {"individual": 500, "family": 1000}
+    assert medical["out_of_pocket_max"] == {"individual": 3000, "family": 6000}
+
+
+def test_billing_flags_an_invoice_paid_twice(client):
+    body = client.get("/v1/companies/C-1001/billing", headers=INTEGRATION).json()
+    inv = next(i for i in body["invoices"] if i["invoice_id"] == "INV-2026-10-001")
+    assert len(inv["payments"]) == 2 and inv["overpaid_by"] == 8450.0
+
+
+def test_billing_needs_its_own_scope(client):
+    assert client.get("/v1/companies/C-1001/billing", headers=READONLY).status_code == 403

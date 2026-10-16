@@ -51,6 +51,9 @@ class CoreClient:
     async def coverage(self, employee_id: str, request_id: str) -> dict:
         return (await self._request("GET", f"/v1/employees/{employee_id}/coverage", request_id)).json()
 
+    async def billing(self, company_id: str, request_id: str) -> dict:
+        return (await self._request("GET", f"/v1/companies/{company_id}/billing", request_id)).json()
+
     async def evaluate_qle(self, employee_id: str, event_type: str, event_date: str, request_id: str) -> dict:
         body = {"employee_id": employee_id, "event_type": event_type, "event_date": event_date}
         return (await self._request("POST", "/v1/qle/evaluate", request_id, json=body)).json()

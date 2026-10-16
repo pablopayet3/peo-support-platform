@@ -66,8 +66,10 @@ class Zendesk:
         return next((f["value"] for f in ticket.get("custom_fields", []) if f["id"] == fid), None)
 
     async def update(self, tid: int, *, fields: dict | None = None, comment: str | None = None, public: bool = False,
-                     ticket_type: str | None = None, due_at: str | None = None) -> None:
+                     ticket_type: str | None = None, due_at: str | None = None, status: str | None = None) -> None:
         body: dict = {}
+        if status:
+            body["status"] = status
         if fields:
             body["custom_fields"] = [{"id": self.fields[k], "value": v} for k, v in fields.items()]
         if comment:
@@ -97,8 +99,15 @@ class Integration:
                                    headers={"Authorization": f"Bearer {s.integration_api_key}"})
 
     async def check(self, body: dict, request_id: str) -> dict:
+        return await self._post("/v1/qle/check", body, request_id)
+
+    async def context(self, body: dict, request_id: str) -> dict:
+        """Who is writing, and the facts for this kind of request (read-only)."""
+        return await self._post("/v1/requests/context", body, request_id)
+
+    async def _post(self, path: str, body: dict, request_id: str) -> dict:
         try:
-            r = await _send(self.c, "POST", "/v1/qle/check", json=body, headers={"X-Request-Id": request_id})
+            r = await _send(self.c, "POST", path, json=body, headers={"X-Request-Id": request_id})
         except (httpx.TimeoutException, httpx.TransportError) as exc:
             raise self.Unavailable(repr(exc))
         if r.status_code >= 500:

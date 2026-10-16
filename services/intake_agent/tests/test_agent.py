@@ -166,3 +166,56 @@ def test_console_renders():
         page = c.get("/console")
         assert page.status_code == 200 and "#7" in page.text and "0.93 high" in page.text
         assert c.get("/v1/decisions").json()["handed_off"] >= 1
+
+
+# ---- The three levels of handling (case study, Part 1 and Part 3) ----------------------------------------
+
+def test_tier1_deductible_is_answered_and_solved_by_the_ai(zd, integ):
+    zd.new_ticket(30, 1, "Hi, what's my deductible?")
+    out = run(zd, integ, 30)
+    assert out.action == "answered" and out.tier == agent.AUTOMATED
+    reply = zd.public_replies(30)[-1]
+    assert "Northwind Gold PPO" in reply and "$500" in reply and "$3,000" in reply
+    assert "member portal" in reply   # how much has been used lives with the carrier: never guessed
+    assert any(b.get("status") == "solved" for t, b in zd.updates if t == 30)
+    assert {"ai_tier_automated", "ai_answered"} <= set(zd.tickets[30]["tags"])
+
+
+def test_tier1_never_shares_plan_details_with_an_unknown_sender(zd, integ):
+    zd.new_ticket(31, 4, "What's my deductible?")
+    out = run(zd, integ, 31)
+    assert out.action == "asked_to_verify"
+    reply = zd.public_replies(31)[-1]
+    assert "$" not in reply and "log in" in reply
+    assert not any(b.get("status") == "solved" for t, b in zd.updates if t == 31)
+
+
+def test_tier3_coverage_failure_goes_to_a_person_and_the_ai_does_not_try_to_fix_it(zd, integ):
+    zd.new_ticket(32, 2, "My employee was turned away at the pharmacy. She says she's not covered and it's been three weeks.")
+    out = run(zd, integ, 32)
+    assert out.action == "escalated" and out.tier == agent.HUMAN_LED
+    assert {"ai_coverage_failure", "ai_tier_human_led"} <= set(zd.tickets[32]["tags"])
+    assert "urgent" in zd.public_replies(32)[-1]
+    note = next(b["comment"]["body"] for t, b in zd.updates if t == 32 and b.get("comment") and not b["comment"]["public"])
+    assert "human-led" in note and "Daniel Kim" in note
+    assert not any(b.get("status") == "solved" for t, b in zd.updates if t == 32)
+
+
+def test_billed_twice_goes_to_payments_with_the_duplicate_payment_for_a_verified_admin(zd, integ):
+    zd.new_ticket(33, 2, "You billed us twice this month and I need this fixed today.")
+    out = run(zd, integ, 33)
+    assert out.action == "routed_to_payments" and out.detail == "verified admin"
+    note = next(b["comment"]["body"] for t, b in zd.updates if t == 33 and b.get("comment") and not b["comment"]["public"])
+    assert "INV-2026-10-001" in note and "paid 2 times" in note and "$8,450" in note
+    assert "ai_sender_unverified" not in zd.tickets[33]["tags"]
+
+
+def test_billed_twice_from_an_unknown_sender_gets_no_details_and_no_refund(zd, integ):
+    zd.new_ticket(34, 4, "You billed us twice this month and I need this fixed today.")
+    out = run(zd, integ, 34)
+    assert out.action == "routed_to_payments" and out.detail == "sender not verified"
+    assert "ai_sender_unverified" in zd.tickets[34]["tags"]
+    reply = zd.public_replies(34)[-1]
+    assert "INV-" not in reply and "$" not in reply
+    note = next(b["comment"]["body"] for t, b in zd.updates if t == 34 and b.get("comment") and not b["comment"]["public"])
+    assert "Do not issue any refund" in note
