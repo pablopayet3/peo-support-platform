@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     zendesk_webhook_id: str = ""
     zendesk_field_ids: str = "{}"
 
+    # Live phone calls: the shared secret the voice platform (Vapi) sends in X-Vapi-Secret
+    vapi_secret: str = ""
+
     # Confidence thresholds from the case study, section 3
     high_confidence: float = 0.85
     medium_confidence: float = 0.50

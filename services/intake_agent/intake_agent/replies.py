@@ -80,3 +80,31 @@ def handed_off(event_type: str, complete: bool, last_day: str | None) -> str:
                 "A benefits specialist will review it and confirm by email. If we need a document, we'll ask.")
     return ("Thank you. Your request is now with our benefits team. "
             "A benefits specialist will review it and get back to you by email.")
+
+
+# Spoken versions, for live phone calls: shorter sentences, no links, nothing to "reply" to.
+def _spoken_usd(n) -> str:
+    return f"{n:,.0f} dollars"
+
+
+def deductible_spoken(first_name: str, plan: dict) -> str:
+    d, o = plan["deductible"], plan["out_of_pocket_max"]
+    return (f"You're on the {plan['plan_name']} plan with {plan['carrier']}. Your in-network deductible is "
+            f"{_spoken_usd(d['individual'])} per person, and {_spoken_usd(d['family'])} per family. Your out-of-pocket "
+            f"maximum is {_spoken_usd(o['individual'])} per person. Your carrier's member portal shows how much you've "
+            "already paid toward it this year. Is there anything else I can help with?")
+
+
+def handed_off_spoken(event_type: str, complete: bool, last_day: str | None) -> str:
+    lead = "Congratulations! " if event_type in ("newborn", "adoption", "marriage") else ""
+    if complete and last_day:
+        return (f"{lead}You're eligible to add {EVENT_WORDS[event_type]} to your plan. The deadline is {_day(last_day)}. "
+                "I've sent your request to our benefits team. A specialist will review it and confirm by email, and "
+                "they'll tell you if any document is needed. Anything else I can help with?")
+    return (f"{lead}Thank you. I've passed your request to our benefits team, and a specialist will contact you to "
+            "go over the next steps. Anything else I can help with?")
+
+
+def escalated_spoken() -> str:
+    return ("I'm sorry, that shouldn't happen. I'm treating this as urgent and connecting you with a benefits "
+            "specialist right now. Please stay on the line.")

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import date
 
 import httpx
@@ -247,3 +248,74 @@ def test_voicemail_without_a_transcript_goes_to_a_person(zd, integ):
     zd.new_voicemail(42, 5, "")
     out = run(zd, integ, 42)
     assert out.action == "skipped" and "ai_callback_needed" in zd.tickets[42]["tags"]
+
+
+# ---- Live phone calls (voice platform tools) ----
+from fastapi.testclient import TestClient  # noqa: E402
+
+
+@pytest.fixture()
+def live(zd, integ, monkeypatch):
+    monkeypatch.setenv("AGENT_VAPI_SECRET", "s" * 32)
+    from intake_agent.config import get_settings
+    get_settings.cache_clear()
+    from intake_agent import main
+    from intake_agent.clients import Integration, Zendesk
+    zd.created = []
+    orig = zd.handler
+
+    def handler(req):
+        if req.url.path == "/api/v2/users/search.json":
+            return httpx.Response(200, json={"users": [{"id": 5, "role": "end-user"}]})
+        if req.url.path == "/api/v2/tickets.json" and req.method == "POST":
+            zd.created.append(json.loads(req.content)["ticket"])
+            return httpx.Response(201, json={"ticket": {"id": 900 + len(zd.created)}})
+        return orig(req)
+    with TestClient(main.app) as c:
+        main.app.state.zd = Zendesk(transport=httpx.MockTransport(handler))
+        main.app.state.integ = Integration(transport=httpx.MockTransport(integ.handler))
+        yield c
+    get_settings.cache_clear()
+
+
+def tool(c, call_id, name, args=None, secret="s" * 32):
+    body = {"message": {"type": "tool-calls", "call": {"id": call_id, "customer": {"number": "+12125550101"}},
+                        "toolCallList": [{"id": "t1", "type": "function", "function": {"name": name, "arguments": args or {}}}]}}
+    r = c.post("/v1/voice/vapi", json=body, headers={"x-vapi-secret": secret})
+    return r if r.status_code != 200 else json.loads(r.json()["results"][0]["result"])
+
+
+def end(c, call_id):
+    return c.post("/v1/voice/vapi", headers={"x-vapi-secret": "s" * 32}, json={"message": {
+        "type": "end-of-call-report", "call": {"id": call_id, "customer": {"number": "+12125550101"}},
+        "analysis": {"summary": "Caller asked a question."}, "artifact": {"transcript": "AI: Hello\nUser: Hi"}}})
+
+
+def test_live_call_deductible_is_answered_on_the_call_and_the_ticket_is_solved(live, zd):
+    assert tool(live, "c1", "lookup_caller")["verified"] is True
+    said = tool(live, "c1", "answer_benefits_question")["say"]
+    assert "500 dollars" in said and "Northwind Gold PPO" in said
+    end(live, "c1")
+    t = zd.created[-1]
+    assert t["status"] == "solved" and {"ai_tier_automated", "ai_voice_live"} <= set(t["tags"])
+    assert "Transcript:" in t["comment"]["body"] and t["comment"]["public"] is False
+
+
+def test_live_call_life_event_runs_the_checks_and_goes_to_benefits_ops(live, zd):
+    said = tool(live, "c2", "check_life_event", {"event_type": "newborn", "event_date": "2026-10-14"})
+    assert said["checks_passed"] and "November 5, 2026" in said["say"]
+    end(live, "c2")
+    t = zd.created[-1]
+    assert "status" not in t and t["type"] == "task" and "ai_tier_human_gate" in t["tags"]
+    assert {f["value"] for f in t["custom_fields"]} >= {"qle_newborn", "2026-10-14", "ai_intake_complete"}
+
+
+def test_live_call_coverage_failure_is_transferred_to_a_person(live, zd):
+    out = tool(live, "c3", "report_coverage_problem", {"description": "turned away at the pharmacy"})
+    assert out["transfer"] is True
+    end(live, "c3")
+    assert {"ai_coverage_failure", "ai_tier_human_led"} <= set(zd.created[-1]["tags"])
+
+
+def test_voice_calls_need_the_shared_secret(live):
+    assert tool(live, "c4", "lookup_caller", secret="wrong" * 8).status_code == 401

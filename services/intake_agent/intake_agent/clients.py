@@ -80,6 +80,29 @@ class Zendesk:
             body["due_at"] = due_at
         await self._ok("PUT", f"/api/v2/tickets/{tid}.json", json={"ticket": body})
 
+    async def user_by_phone(self, phone: str) -> int | None:
+        """The end user whose phone number this is, if Zendesk knows it."""
+        data = await self._ok("GET", "/api/v2/users/search.json", params={"query": phone})
+        users = [u for u in data.get("users", []) if u.get("role") == "end-user"]
+        return users[0]["id"] if users else None
+
+    async def create_ticket(self, *, subject: str, note: str, requester_id: int | None, phone: str, tags: list[str],
+                            fields: dict | None = None, due_at: str | None = None, status: str | None = None) -> int:
+        body: dict = {"subject": subject, "comment": {"body": note, "public": False}, "tags": tags}
+        if not requester_id and phone:
+            made = await self._ok("POST", "/api/v2/users/create_or_update.json", json={"user": {
+                "name": f"Caller {phone}", "role": "end-user", "identities": [{"type": "phone_number", "value": phone}]}})
+            requester_id = made["user"]["id"]
+        if requester_id:
+            body["requester_id"] = requester_id
+        if fields:
+            body["custom_fields"] = [{"id": self.fields[k], "value": v} for k, v in fields.items()]
+        if due_at:
+            body["type"], body["due_at"] = "task", due_at
+        if status:
+            body["status"] = status
+        return (await self._ok("POST", "/api/v2/tickets.json", json={"ticket": body}))["ticket"]["id"]
+
     async def add_tags(self, tid: int, tags: list[str]) -> None:
         await self._ok("PUT", f"/api/v2/tickets/{tid}/tags.json", json={"tags": tags})
 

@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from . import agent, console
+from . import agent, console, voice
 from .clients import Integration, Zendesk
 from .config import get_settings
 from .llm import FallbackExtractor, GeminiExtractor, RuleExtractor
@@ -139,3 +139,59 @@ async def webhook(request: Request, background: BackgroundTasks):
 
     background.add_task(run)
     return {"accepted": True, "ticket_id": ticket_id, "request_id": rid}
+
+
+def _vapi_ok(request: Request) -> bool:
+    secret = get_settings().vapi_secret
+    got = request.headers.get("x-vapi-secret") or ""
+    return bool(secret) and len(secret) >= 24 and hmac.compare_digest(got, secret)
+
+
+def _args(tc: dict) -> dict:
+    a = (tc.get("function") or {}).get("arguments") or tc.get("arguments") or {}
+    return json.loads(a) if isinstance(a, str) else a
+
+
+@app.post("/v1/voice/vapi")
+async def vapi(request: Request, background: BackgroundTasks):
+    """Live phone calls (Vapi server messages): tool calls during the call, and the end-of-call report."""
+    if not _vapi_ok(request):
+        raise HTTPException(401, "invalid secret")
+    msg = (await request.json()).get("message") or {}
+    call_info = msg.get("call") or {}
+    call_id = call_info.get("id") or "unknown"
+    phone = (call_info.get("customer") or {}).get("number") or ""
+    rid = request.headers.get("x-request-id") or uuid.uuid4().hex
+    integ = request.app.state.integ
+    if msg.get("type") == "tool-calls":
+        call = voice._call(call_id, phone)
+        today = datetime.now(ZoneInfo("America/New_York")).date()
+        results = []
+        for tc in msg.get("toolCallList") or msg.get("toolCalls") or []:
+            name = (tc.get("function") or {}).get("name") or tc.get("name")
+            a = _args(tc)
+            if name == "lookup_caller":
+                out = await voice.lookup_caller(integ, call, rid)
+            elif name == "answer_benefits_question":
+                out = await voice.answer_benefits_question(integ, call, rid)
+            elif name == "check_life_event":
+                out = await voice.check_life_event(integ, call, a.get("event_type", ""), a.get("event_date"), today, rid)
+            elif name == "report_coverage_problem":
+                out = voice.report_coverage_problem(call, a.get("description", ""))
+            else:
+                out = {"say": "Sorry, I can't help with that on this call. A specialist will follow up."}
+            log.info("voice tool", extra={"extra_fields": {"request_id": rid, "call_id": call_id, "tool": name,
+                                                           "tier": call.tier}})
+            results.append({"toolCallId": tc.get("id"), "result": json.dumps(out)})
+        return {"results": results}
+    if msg.get("type") == "end-of-call-report":
+        async def make():
+            try:
+                tid, tier, intent = await voice.create_ticket(request.app.state.zd, call_id, msg)
+                console.record(tid, agent.Outcome("live_call", "phone", intent=intent, band="high", confidence=1.0,
+                                                  model="voice", tier=tier, channel="voice"), 0, rid)
+            except Exception as exc:  # noqa: BLE001
+                log.error("voice ticket failed", extra={"extra_fields": {"call_id": call_id, "error": repr(exc)[:300]}})
+        background.add_task(make)
+        return {"ok": True}
+    return {"ok": True}

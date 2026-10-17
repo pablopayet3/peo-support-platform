@@ -13,7 +13,8 @@ ACTIONS = {"handed_off": "Handed off to Benefits Ops", "asked_to_confirm": "Aske
            "asked_for_date": "Asked for the date", "asked_for_company": "Asked which company",
            "answered": "Answered on its own", "asked_to_verify": "Asked the sender to verify",
            "escalated": "Escalated to a person, urgent", "routed_to_payments": "Sent to Payments, urgent",
-           "skipped": "Left to normal routing", "ignored": "Already handled"}
+           "skipped": "Left to normal routing", "ignored": "Already handled",
+           "live_call": "Live phone call, ticket created"}
 TIERS = {"ai_tier_automated": ("Automated", "high"), "ai_tier_human_gate": ("Human approval", "medium"),
          "ai_tier_human_led": ("Human-led", "low")}
 
