@@ -110,7 +110,7 @@ triggers:
   - title: "20-URG | Life event, AI check failed | Benefits Ops, Urgent"
     description: A check failed. The ticket goes to Benefits Ops as urgent and the group is notified.
     all:
-      - { field: "{field:Life event type}", operator: is, value: qle_newborn }
+      - { field: "{field:Life event type}", operator: present }   # every life event, not only newborns
       - { field: current_tags, operator: not_includes, value: qle_check_failed }
     any:
       - { field: "{field:AI intake result}", operator: is, value: ai_fail_no_plan }
@@ -124,7 +124,7 @@ triggers:
   - title: "30-ROUTE | Life event, all other cases | Benefits Ops"
     description: Every other newborn request goes to Benefits Ops at normal priority.
     all:
-      - { field: "{field:Life event type}", operator: is, value: qle_newborn }
+      - { field: "{field:Life event type}", operator: present }   # every life event, not only newborns
       - { field: current_tags, operator: not_includes, value: qle_routed }
     actions:
       - { field: group_id, value: "{group:Benefits Ops}" }
