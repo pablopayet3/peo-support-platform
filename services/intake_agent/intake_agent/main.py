@@ -144,7 +144,9 @@ async def webhook(request: Request, background: BackgroundTasks):
 
 def _vapi_ok(request: Request) -> bool:
     secret = get_settings().vapi_secret
-    got = request.headers.get("x-vapi-secret") or ""
+    # Vapi sends the secret as X-Vapi-Secret, or as a Bearer token when a Vapi credential is used
+    auth = request.headers.get("authorization") or ""
+    got = request.headers.get("x-vapi-secret") or (auth[7:] if auth.lower().startswith("bearer ") else "")
     return bool(secret) and len(secret) >= 24 and hmac.compare_digest(got, secret)
 
 

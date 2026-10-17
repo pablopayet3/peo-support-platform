@@ -319,6 +319,8 @@ def test_live_call_coverage_failure_is_transferred_to_a_person(live, zd):
 
 def test_voice_calls_need_the_shared_secret(live):
     assert tool(live, "c4", "lookup_caller", secret="wrong" * 8).status_code == 401
+    body = {"message": {"type": "status-update", "call": {"id": "c5"}}}
+    assert live.post("/v1/voice/vapi", json=body, headers={"Authorization": "Bearer " + "s" * 32}).status_code == 200
 
 
 def test_portal_signs_a_messaging_token_for_the_demo_employee():
