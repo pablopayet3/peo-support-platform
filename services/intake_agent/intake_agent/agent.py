@@ -4,6 +4,7 @@ The model classifies and extracts. Everything else is code: the thresholds, the 
 (through the integration service), what is written to Zendesk, and every reply to the customer.
 State lives on the ticket as tags, so the agent itself keeps nothing between messages.
 """
+import asyncio
 import logging
 import re
 from dataclasses import dataclass
@@ -108,6 +109,9 @@ def _conversation(comments: list[dict], requester_id: int) -> tuple[str, str]:
     return raw, redact(raw)[0]
 
 
+TRANSCRIPT_WAITS, TRANSCRIPT_WAIT_S = 9, 10   # up to 90 seconds
+
+
 async def process(ticket_id: int, zd: Zendesk, integ: Integration, extractor: Extractor, today: date,
                   request_id: str) -> Outcome:
     s = get_settings()
@@ -125,6 +129,12 @@ async def process(ticket_id: int, zd: Zendesk, integ: Integration, extractor: Ex
     channel = channel_of(ticket)
     requester = await zd.user(ticket["requester_id"])
     raw, safe = _conversation(await zd.comments(ticket_id), ticket["requester_id"])
+    # Zendesk adds the voicemail transcript a few seconds after it creates the ticket: wait for it
+    for _ in range(TRANSCRIPT_WAITS if channel == "voice" else 0):
+        if raw:
+            break
+        await asyncio.sleep(TRANSCRIPT_WAIT_S)
+        raw, safe = _conversation(await zd.comments(ticket_id), ticket["requester_id"])
     if channel == "voice" and not raw:
         # The voicemail has no transcript (yet): nothing to read, so a person listens to the recording
         await zd.update(ticket_id, comment="The AI support agent found no voicemail transcript. "

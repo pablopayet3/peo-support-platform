@@ -3,6 +3,7 @@
 Two implementations share one interface. GeminiExtractor uses the model; RuleExtractor is the
 deterministic fallback used in tests, and whenever the model is unavailable or over quota.
 """
+import asyncio
 import json
 import re
 from datetime import date, datetime
@@ -184,15 +185,18 @@ class FallbackExtractor:
         self.primary, self.fallback = primary, fallback
         self.name = primary.name if primary else fallback.name
         self.last_used = self.name  # which one answered the latest request (shown in the console)
+        self.retry_wait_s = 2.0
 
     async def extract(self, conversation: str, today: date) -> Extraction:
         if self.primary is not None:
-            try:
-                result = await self.primary.extract(conversation, today)
-                self.last_used = self.primary.name
-                return result
-            except Exception:  # noqa: BLE001 - any model failure falls back to the rules
-                pass
+            for attempt in range(2):   # one retry: model APIs return brief 503 and 429 errors under load
+                try:
+                    result = await self.primary.extract(conversation, today)
+                    self.last_used = self.primary.name
+                    return result
+                except Exception:  # noqa: BLE001 - any model failure falls back to the rules
+                    if attempt == 0:
+                        await asyncio.sleep(self.retry_wait_s)
         self.last_used = self.fallback.name
         return await self.fallback.extract(conversation, today)
 

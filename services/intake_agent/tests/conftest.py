@@ -125,3 +125,11 @@ def zd():
 @pytest.fixture()
 def integ():
     return FakeIntegration()
+
+
+@pytest.fixture(autouse=True)
+def _no_waits(monkeypatch):
+    """Tests never sleep: no wait for a voicemail transcript, no pause before a model retry."""
+    from intake_agent import agent
+    monkeypatch.setattr(agent, "TRANSCRIPT_WAITS", 0)
+    monkeypatch.setattr(agent, "TRANSCRIPT_WAIT_S", 0)
