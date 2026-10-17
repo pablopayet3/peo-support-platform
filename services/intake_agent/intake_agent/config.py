@@ -2,6 +2,7 @@
 import json
 from functools import lru_cache
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,7 +38,9 @@ class Settings(BaseSettings):
     portal_demo: bool = False
     widget_key: str = ""
     messaging_key_id: str = ""
-    messaging_secret: str = ""
+    # Railway would not rename the variable once created, so the short spelling is accepted too.
+    messaging_secret: str = Field(default="", validation_alias=AliasChoices(
+        "AGENT_MESSAGING_SECRET", "AGENT_MESSAGING_SECRE", "messaging_secret"))
 
     # Chat: the agent as first responder in Zendesk messaging, through the Conversations API
     sunco_app_id: str = ""
