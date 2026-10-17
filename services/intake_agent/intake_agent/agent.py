@@ -94,10 +94,30 @@ def _text(c: dict) -> str:
     return c.get("plain_body") or c.get("body", "")
 
 
+CALL_TRANSCRIPT = re.compile(r"^\s*Call transcript:\s*", re.I)
+TRANSCRIPT_NOISE = [re.compile(r"\b\d{1,2}:\d{2}\s*(Customer|Agent|Caller)\s*:?\s*", re.I),
+                    re.compile(r"If you redact any data from this comment.*$", re.I | re.S)]
+
+
+def _call_transcript(c: dict) -> str:
+    """Zendesk's call transcript note (added a few seconds after a voicemail), as the caller's words."""
+    body = c.get("plain_body") or c.get("body") or ""
+    if not CALL_TRANSCRIPT.match(body):
+        return ""
+    text = CALL_TRANSCRIPT.sub("", body)
+    for noise in TRANSCRIPT_NOISE:
+        text = noise.sub(" ", text)
+    return " ".join(text.split())
+
+
 def _conversation(comments: list[dict], requester_id: int) -> tuple[str, str]:
     """What the customer and Northwind said to each other, oldest first. Returns (raw, redacted)."""
     parts = []
     for c in comments:
+        transcript = _call_transcript(c) if not c.get("public", True) else ""
+        if transcript:
+            parts.append(f"Customer: {transcript}")
+            continue
         if not c.get("public", True) and c.get("type") != "VoiceComment":
             continue
         text = _text(c)
