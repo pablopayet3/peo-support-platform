@@ -412,3 +412,15 @@ def test_a_silent_call_is_recorded_but_needs_no_one(live, zd):
         "artifact": {"transcript": "AI: Thanks for calling.", "messages": [{"role": "bot", "message": "Thanks"}]}}})
     t = zd.created[-1]
     assert t["status"] == "solved" and "ai_call_no_request" in t["tags"]
+
+
+def test_one_call_with_three_requests_makes_one_ticket_per_request(live, zd):
+    tool(live, "c10", "lookup_caller")
+    tool(live, "c10", "answer_benefits_question")
+    tool(live, "c10", "check_life_event", {"event_type": "marriage", "event_date": "2026-10-10"})
+    tool(live, "c10", "report_coverage_problem", {"description": "the pharmacy says I'm not covered"})
+    end(live, "c10")
+    coverage, life = zd.created[-2], zd.created[-1]
+    assert "ai_coverage_failure" in coverage["tags"] and "due_at" not in coverage   # an incident has no due date
+    assert life["type"] == "task" and "ai_coverage_failure" not in life["tags"]
+    assert "Also answered on the call" in coverage["comment"]["body"]

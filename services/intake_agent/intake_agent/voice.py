@@ -39,6 +39,9 @@ class Call:
     tags: list[str] = field(default_factory=list)
     due_at: str | None = None
     solved: bool = False
+    answered: bool = False                                       # tier 1 answered on the call
+    life_facts: list[str] = field(default_factory=list)          # tier 2: becomes its own ticket
+    coverage_facts: list[str] = field(default_factory=list)      # tier 3: becomes its own ticket
 
 
 CALLS: dict[str, Call] = {}
@@ -89,10 +92,10 @@ async def answer_benefits_question(integ: Integration, call: Call, rid: str) -> 
         why = "caller not verified" if not ctx["verified"] else ("no active plan" if not plans else "plans with more than one company")
         call.facts.append(f"Deductible question not answered on the call: {why}.")
         return {"say": "I'm not able to give you plan details on this call. A benefits specialist will follow up with you."}
-    call.tier, call.solved = AUTOMATED, True
-    call.tags += ["ai_answered"]
+    call.answered = True
+    if not call.tier:
+        call.tier = AUTOMATED
     med = plans[0]["medical"]
-    call.facts.append(f"Answered on the call from the plan documents: {med['plan_name']}.")
     return {"say": replies.deductible_spoken(_first(ctx["name"]), med)}
 
 
@@ -106,22 +109,22 @@ async def check_life_event(integ: Integration, call: Call, event_type: str, even
     if d is None:
         return {"say": replies.ask_date(event_type).replace("please reply with", "can you tell me")
                 .replace(" (for example, October 6, 2026)", "")}
-    call.tier = HUMAN_GATE
+    call.tier = call.tier if call.tier == HUMAN_LED else HUMAN_GATE
     call.fields = {"life_event_type": f"qle_{event_type}", "event_date": d.isoformat()}
     try:
         result = await integ.check({"requester": {"phone": call.phone}, "event_type": event_type,
                                     "event_date": d.isoformat()}, rid)
     except Integration.Unavailable:
         call.fields["ai_intake_result"] = "ai_intake_incomplete"
-        call.facts.append("The checks could not run during the call. Run them in the sidebar app.")
+        call.life_facts.append("The checks could not run during the call. Run them in the sidebar app.")
         return {"say": "Thank you. I've noted the date. A benefits specialist will confirm the next steps with you, "
                        "well before your deadline."}
     call.fields["ai_intake_result"] = result["ai_intake_result"]
     call.due_at = result.get("deadline")
     for c in result["checks"]:
-        call.facts.append(f"- {c['name'].replace('_', ' ')}: {'passed' if c['passed'] else 'FAILED'}, {c['detail']}")
+        call.life_facts.append(f"- {c['name'].replace('_', ' ')}: {'passed' if c['passed'] else 'FAILED'}, {c['detail']}")
     if result.get("last_day"):
-        call.facts.append(f"Enrollment deadline: {replies.deadline_text(result['last_day'])}")
+        call.life_facts.append(f"Enrollment deadline: {replies.deadline_text(result['last_day'])}")
     complete = result["ai_intake_result"] == "ai_intake_complete"
     return {"checks_passed": complete,
             "say": replies.handed_off_spoken(event_type, complete, result.get("last_day"))}
@@ -129,9 +132,8 @@ async def check_life_event(integ: Integration, call: Call, event_type: str, even
 
 def report_coverage_problem(call: Call, description: str) -> dict:
     """Tier 3: harm may already be happening, so a person takes over now, on this call."""
-    call.intent, call.tier = "benefits_question", HUMAN_LED
-    call.tags += ["ai_coverage_failure"]
-    call.facts.append(f"Possible coverage failure, reported on the call: {description[:300]}. "
+    call.tier = HUMAN_LED
+    call.coverage_facts.append(f"Possible coverage failure, reported on the call: {description[:300]}. "
                       "The AI did not try to resolve it and transferred the call to a person.")
     return {"transfer": True, "say": replies.escalated_spoken()}
 
@@ -148,33 +150,53 @@ def _transcript(report: dict) -> str:
 
 
 async def create_ticket(zd: Zendesk, call_id: str, report: dict) -> tuple[int, str, str]:
-    """One ticket per call, with everything the team needs. The routing triggers do the rest."""
+    """One ticket per request in the call, each routed by the usual triggers.
+
+    A caller may ask several things: a coverage failure becomes an urgent incident for Benefits Escalation, a
+    life event becomes a task for Benefits Ops due on its deadline, and a question answered on the call is
+    recorded as solved. Each ticket carries the whole transcript. Returns the main ticket.
+    """
     phone = ((report.get("call") or {}).get("customer") or {}).get("number") or ""
     call = CALLS.pop(call_id, None) or Call(phone=phone)
     summary = ((report.get("analysis") or {}).get("summary") or "").strip()
     transcript = _transcript(report)
     recording = (report.get("artifact") or {}).get("recordingUrl") or report.get("recordingUrl")
-    spoke = any(m.get("role") == "user" for m in ((report.get("artifact") or {}).get("messages") or report.get("messages") or []))
-    if not call.tier and not spoke and "User:" not in transcript and "Caller:" not in transcript:
-        # The caller never said anything: record it for reporting, but nobody needs to act on it
-        call.solved = True
-        call.tags.append("ai_call_no_request")
-    tier = call.tier or HUMAN_GATE
-    label = {AUTOMATED: "answered on the call", HUMAN_GATE: "a person follows up",
-             HUMAN_LED: "transferred to a person"}[tier]
-    note = [f"Live phone call with the AI support agent ({label}).", f"Handling: {tier.removeprefix('ai_tier_').replace('_', ' ')}.",
-            summary or "-", *call.facts]
-    if recording:
-        note.append(f"Recording: {recording}")
-    note += ["", "Transcript:", transcript or "(no transcript)"]
+    messages = (report.get("artifact") or {}).get("messages") or report.get("messages") or []
+    spoke = any(m.get("role") == "user" for m in messages) or "User:" in transcript or "Caller:" in transcript
     requester_id = await zd.user_by_phone(call.phone) if call.phone else None
-    subject = {"life_event": "Phone call: life event", "benefits_question": "Phone call: benefits question"}.get(
-        call.intent, "Phone call")
-    tid = await zd.create_ticket(
-        subject=subject + (f" ({summary[:60]})" if summary else ""), note="\n".join(note), requester_id=requester_id,
-        phone=call.phone, fields=call.fields, due_at=call.due_at,
-        tags=["ai_channel_voice", "ai_voice_live", tier, f"ai_intent_{call.intent}", "ai_intake_done", *call.tags],
-        status="solved" if call.solved else None)
-    log.info("voice call ticket", extra={"extra_fields": {"call_id": call_id, "ticket_id": tid, "tier": tier,
-                                                          "intent": call.intent}})
-    return tid, tier, call.intent
+    base = ["ai_channel_voice", "ai_voice_live", "ai_intake_done"]
+    tail = ([f"Recording: {recording}"] if recording else []) + ["", "Transcript:", transcript or "(no transcript)"]
+    also = ["Also answered on the call: the caller's deductible and out-of-pocket maximum."] if call.answered else []
+
+    async def make(subject: str, tier: str, intent: str, facts: list[str], tags: list[str], **kw) -> int:
+        label = {AUTOMATED: "answered on the call", HUMAN_GATE: "a person follows up",
+                 HUMAN_LED: "transferred to a person"}[tier]
+        note = [f"Live phone call with the AI support agent ({label}).",
+                f"Handling: {tier.removeprefix('ai_tier_').replace('_', ' ')}.", summary or "-", *call.facts, *facts, *tail]
+        return await zd.create_ticket(subject=subject + (f" ({summary[:60]})" if summary else ""), note="\n".join(note),
+                                      requester_id=requester_id, phone=call.phone,
+                                      tags=[*base, tier, f"ai_intent_{intent}", *tags], **kw)
+
+    made: list[tuple[int, str, str]] = []
+    if call.coverage_facts:
+        tid = await make("Phone call: coverage problem", HUMAN_LED, "benefits_question",
+                         call.coverage_facts + also, ["ai_coverage_failure"])
+        made.append((tid, HUMAN_LED, "benefits_question"))
+        also = []
+    if call.fields:
+        tid = await make("Phone call: life event", HUMAN_GATE, "life_event", call.life_facts + also, [],
+                         fields=call.fields, due_at=call.due_at)
+        made.append((tid, HUMAN_GATE, "life_event"))
+        also = []
+    if not made:
+        if call.answered:
+            tid = await make("Phone call: benefits question", AUTOMATED, "benefits_question",
+                             ["Answered on the call from the plan documents."], ["ai_answered"], status="solved")
+            made.append((tid, AUTOMATED, "benefits_question"))
+        else:
+            # Nothing the AI could act on. If the caller never spoke, nobody needs to act on it either.
+            tid = await make("Phone call", HUMAN_GATE, call.intent, [], [] if spoke else ["ai_call_no_request"],
+                             status=None if spoke else "solved")
+            made.append((tid, HUMAN_GATE, call.intent))
+    log.info("voice call tickets", extra={"extra_fields": {"call_id": call_id, "tickets": [m[0] for m in made]}})
+    return made[0]

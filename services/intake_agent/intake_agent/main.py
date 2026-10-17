@@ -206,7 +206,9 @@ async def vapi(request: Request, background: BackgroundTasks):
                 console.record(tid, agent.Outcome("live_call", "phone", intent=intent, band="high", confidence=1.0,
                                                   model="voice", tier=tier, channel="voice"), 0, rid)
             except Exception as exc:  # noqa: BLE001
-                log.error("voice ticket failed", extra={"extra_fields": {"call_id": call_id, "error": repr(exc)[:300]}})
+                body = getattr(getattr(exc, "response", None), "text", "")[:300]
+                log.error("voice ticket failed", extra={"extra_fields": {"call_id": call_id, "error": repr(exc)[:200],
+                                                                         "response": body}})
         background.add_task(make)
         return {"ok": True}
     return {"ok": True}
