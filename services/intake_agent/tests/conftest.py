@@ -19,7 +19,17 @@ class FakeZendesk:
         self.users = {1: {"id": 1, "email": "maria.lopez@acmebakery.example"},
                       2: {"id": 2, "email": "daniel.kim@acmebakery.example"},
                       3: {"id": 3, "email": "sam.rivera@harborpine.example"},
-                      4: {"id": 4, "email": "stranger@mailbox.example"}}
+                      4: {"id": 4, "email": "stranger@mailbox.example"},
+                      5: {"id": 5, "email": None, "phone": "+12125550101"}}   # Maria, calling in
+
+    def new_voicemail(self, tid, requester, transcript):
+        self.tickets[tid] = {"id": tid, "requester_id": requester, "tags": [], "custom_fields": [],
+                             "via": {"channel": "voice"}}
+        self.comments[tid] = [{"author_id": requester, "public": False, "type": "VoiceComment",
+                               "body": "Voicemail from: +1 212-555-0101", "data": {"transcription_text": transcript}}]
+
+    def notes(self, tid):
+        return [b["comment"]["body"] for t, b in self.updates if t == tid and b.get("comment") and not b["comment"]["public"]]
 
     def new_ticket(self, tid, requester, text):
         self.tickets[tid] = {"id": tid, "requester_id": requester, "tags": [], "custom_fields": []}
@@ -65,7 +75,8 @@ class FakeIntegration:
             return httpx.Response(503, json={"error": "unavailable"})
         body = json.loads(req.content)
         self.calls.append(body)
-        email = body["requester"].get("email")
+        email = body["requester"].get("email") or {"+12125550101": "maria.lopez@acmebakery.example"}.get(
+            body["requester"].get("phone"))
         if req.url.path == "/v1/requests/context":
             return httpx.Response(200, json=self.context(email, body["topic"]))
         if email == "sam.rivera@harborpine.example" and "company_id" not in body:

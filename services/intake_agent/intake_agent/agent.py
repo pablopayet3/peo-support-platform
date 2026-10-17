@@ -36,16 +36,74 @@ class Outcome:
     band: str = ""
     model: str = ""
     tier: str = ""  # automated, human approval or human-led (the case study's three levels)
+    channel: str = "email"
+
+
+class Callback:
+    """Voice: the same decisions, but a reply cannot be typed back to a caller.
+
+    Every customer-facing message becomes a callback script in an internal note, nothing is solved
+    automatically, and the ticket is tagged for a callback. Everything else passes through unchanged.
+    """
+
+    def __init__(self, zd: Zendesk):
+        self._zd, self.script = zd, []
+
+    def __getattr__(self, name):
+        return getattr(self._zd, name)
+
+    async def update(self, tid: int, *, comment: str | None = None, public: bool = False, status: str | None = None, **kw):
+        if public and comment:
+            self.script.append(comment)
+            comment = None
+        if comment or kw:
+            await self._zd.update(tid, comment=comment, **kw)
+
+    async def finish(self, tid: int, out: "Outcome") -> None:
+        tags = ["ai_channel_voice", CALLBACK]
+        if self.script:
+            lines = ["Callback script (voicemail: the caller cannot read a reply, so a person calls back and says this):"]
+            if out.tier == AUTOMATED:
+                lines.append("On email or chat this would have been answered and solved automatically. "
+                             "On voice the answer is ready; a person reads it on the callback, then solves the ticket.")
+            lines += self.script
+            await self._zd.update(tid, comment="\n\n".join(lines))
+        await self._zd.add_tags(tid, tags)
+
+
+VOICE_CHANNELS = {"voice", "voicemail", "phone_call_inbound"}
+CALLBACK = "ai_callback_needed"
+
+
+def channel_of(ticket: dict) -> str:
+    """email, voice or messaging: the rules are the same everywhere, only the way the answer travels changes."""
+    ch = ((ticket.get("via") or {}).get("channel") or "").lower()
+    if ch in VOICE_CHANNELS:
+        return "voice"
+    if ch in {"native_messaging", "messaging", "chat", "sunshine_conversations_api", "web_widget"}:
+        return "messaging"
+    return "email"
+
+
+def _text(c: dict) -> str:
+    """A voicemail's words are its transcript; any other message is its body."""
+    data = c.get("data") or {}
+    if c.get("type") == "VoiceComment" or data.get("transcription_text"):
+        return data.get("transcription_text") or ""
+    return c.get("plain_body") or c.get("body", "")
 
 
 def _conversation(comments: list[dict], requester_id: int) -> tuple[str, str]:
-    """Public messages only, oldest first. Returns (raw, redacted)."""
+    """What the customer and Northwind said to each other, oldest first. Returns (raw, redacted)."""
     parts = []
     for c in comments:
-        if not c.get("public", True):
+        if not c.get("public", True) and c.get("type") != "VoiceComment":
+            continue
+        text = _text(c)
+        if not text:
             continue
         who = "Customer" if c.get("author_id") == requester_id else "Northwind"
-        parts.append(f"{who}: {c.get('plain_body') or c.get('body', '')}".strip())
+        parts.append(f"{who}: {text}".strip())
     raw = "\n---\n".join(parts)
     return raw, redact(raw)[0]
 
@@ -58,8 +116,17 @@ async def process(ticket_id: int, zd: Zendesk, integ: Integration, extractor: Ex
     if DONE in tags or SKIPPED in tags or zd.field(ticket, "ai_intake_result"):
         return Outcome("ignored", "intake already finished")
 
+    channel = channel_of(ticket)
     requester = await zd.user(ticket["requester_id"])
     raw, safe = _conversation(await zd.comments(ticket_id), ticket["requester_id"])
+    if channel == "voice" and not raw:
+        # The voicemail has no transcript (yet): nothing to read, so a person listens to the recording
+        await zd.update(ticket_id, comment="The AI support agent found no voicemail transcript. "
+                        "Listen to the recording and call the customer back. Normal routing applies.")
+        await zd.add_tags(ticket_id, [SKIPPED, "ai_channel_voice", CALLBACK])
+        return Outcome("skipped", "no voicemail transcript")
+    if channel == "voice":
+        zd = Callback(zd)
     ex = await extractor.extract(safe, today)
 
     band = "high" if ex.confidence >= s.high_confidence else ("medium" if ex.confidence >= s.medium_confidence else "low")
@@ -138,6 +205,9 @@ async def process(ticket_id: int, zd: Zendesk, integ: Integration, extractor: Ex
         return await handoff(zd, ticket_id, event_type, event_date, result, ex, request_id, triage)
 
     out = await decide()
+    if channel == "voice":
+        await zd.finish(ticket_id, out)
+    out.channel = channel
     out.intent, out.event_type, out.confidence, out.band = ex.intent, ex.event_type, ex.confidence, band
     out.model = getattr(extractor, "last_used", extractor.name)
     return out

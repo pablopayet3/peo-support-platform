@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     # Demo only: give sample people a real inbox (JSON {"P-1001": "you+maria@example.com"}), so a live demo
     # can email in as Maria and receive the agent's replies. Kept out of the repository.
     demo_email_overrides: str = "{}"
+    # Same for phone numbers ({"P-1001": "+15555550123"}), so a live demo can call in as Maria.
+    demo_phone_overrides: str = "{}"
     # For demos and tests only: pretend today is this date (YYYY-MM-DD).
     frozen_today: str | None = None
     log_level: str = "INFO"

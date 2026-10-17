@@ -1,4 +1,5 @@
 """Sample data for the fictional Northwind PEO. Each person exists to exercise one case."""
+import re
 from datetime import date
 
 from sqlalchemy.orm import Session
@@ -71,13 +72,22 @@ def seed(db: Session) -> bool:
     return True
 
 
-def apply_demo_email_overrides(db: Session, overrides: dict[str, str]) -> int:
-    """Point sample people at real demo inboxes. Idempotent; returns how many changed."""
+def normalize_phone(value: str) -> str:
+    """One form for every phone number (+1 and ten digits for US numbers), so a lookup matches however it was typed."""
+    digits = re.sub(r"\D", "", value or "")
+    if len(digits) == 10:
+        digits = "1" + digits
+    return "+" + digits if digits else ""
+
+
+def apply_demo_email_overrides(db: Session, overrides: dict[str, str], field: str = "email") -> int:
+    """Point sample people at a real demo inbox or phone. Idempotent; returns how many changed."""
     changed = 0
-    for person_id, email in overrides.items():
+    for person_id, value in overrides.items():
+        value = normalize_phone(value) if field == "phone" else value.strip().lower()
         person = db.get(Person, person_id)
-        if person is not None and person.email != email:
-            person.email = email
+        if person is not None and getattr(person, field) != value:
+            setattr(person, field, value)
             changed += 1
     db.commit()
     return changed

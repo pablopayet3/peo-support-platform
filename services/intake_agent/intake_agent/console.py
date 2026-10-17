@@ -22,7 +22,7 @@ def record(ticket_id: int, out, ms: float, request_id: str) -> None:
     decisions.appendleft({"at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), "ticket_id": ticket_id,
                           "intent": out.intent, "event_type": out.event_type, "confidence": round(out.confidence, 2),
                           "band": out.band, "action": out.action, "detail": out.detail, "model": out.model,
-                          "tier": getattr(out, "tier", ""),
+                          "tier": getattr(out, "tier", ""), "channel": getattr(out, "channel", "email"),
                           "ms": round(ms), "request_id": request_id})
 
 
@@ -54,7 +54,7 @@ def render(settings, model_name: str) -> str:
     intents = " ".join(f'<span class="chip">{e(k.replace("_", " "))} <b>{v}</b></span>'
                        for k, v in sorted(s["by_intent"].items(), key=lambda kv: -kv[1])) or '<span class="muted">none yet</span>'
     rows = "".join(
-        f'<tr><td class="mono">{e(d["at"][11:])}</td><td>#{d["ticket_id"]}</td>'
+        f'<tr><td class="mono">{e(d["at"][11:])}</td><td>#{d["ticket_id"]} <span class="muted">{e(d.get("channel", "email"))}</span></td>'
         f'<td>{e(d["intent"].replace("_", " "))}{(" · " + e(d["event_type"].replace("_", " "))) if d["event_type"] and d["intent"] == "life_event" else ""}</td>'
         f'<td><span class="pill {e(d["band"])}">{d["confidence"]:.2f} {e(d["band"])}</span></td>'
         f'<td>{e(ACTIONS.get(d["action"], d["action"]))}{(" · " + e(d["detail"])) if d["detail"] and d["action"] == "handed_off" else ""}</td>'

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from .. import audit
 from ..db import get_db
 from ..models import Employee, Person
+from ..seed import normalize_phone
 from ..security import Caller, request_id, require_scope
 
 router = APIRouter(prefix="/v1", tags=["identity"])
@@ -23,7 +24,7 @@ def lookup_person(email: str | None = Query(default=None), phone: str | None = Q
     if not email and not phone:
         raise HTTPException(400, "email or phone is required")
     stmt = select(Person)
-    stmt = stmt.where(Person.email == email.strip().lower()) if email else stmt.where(Person.phone == phone.strip())
+    stmt = stmt.where(Person.email == email.strip().lower()) if email else stmt.where(Person.phone == normalize_phone(phone))
     person = db.scalars(stmt).first()
     audit.record(db, actor=caller.client, action="identity.lookup", entity="person",
                  entity_id=person.id if person else "-", request_id=rid, found=bool(person))

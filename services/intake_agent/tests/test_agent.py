@@ -219,3 +219,31 @@ def test_billed_twice_from_an_unknown_sender_gets_no_details_and_no_refund(zd, i
     assert "INV-" not in reply and "$" not in reply
     note = next(b["comment"]["body"] for t, b in zd.updates if t == 34 and b.get("comment") and not b["comment"]["public"])
     assert "Do not issue any refund" in note
+
+
+def test_voicemail_deductible_gets_a_callback_script_not_a_reply(zd, integ):
+    zd.new_voicemail(40, 5, "Hi, this is Maria Lopez from Acme Bakery. I wanted to know what my deductible is. Thanks.")
+    out = run(zd, integ, 40)
+    assert out.channel == "voice" and out.tier == agent.AUTOMATED
+    assert zd.public_replies(40) == []                       # nothing typed back to a caller
+    assert not any(b.get("status") == "solved" for t, b in zd.updates if t == 40)
+    script = zd.notes(40)[-1]
+    assert script.startswith("Callback script") and "$500" in script
+    assert {"ai_channel_voice", "ai_callback_needed", "ai_tier_automated"} <= set(zd.tickets[40]["tags"])
+    assert integ.calls[0]["requester"] == {"phone": "+12125550101"}   # identified by the number that called
+
+
+def test_voicemail_newborn_runs_the_checks_and_hands_off_with_a_callback(zd, integ):
+    zd.new_voicemail(41, 5, "Hi, it's Maria Lopez. I had my baby on October 14th and I need to add her to my insurance.")
+    out = run(zd, integ, 41)
+    assert out.action == "handed_off" and out.tier == agent.HUMAN_GATE
+    assert zd.public_replies(41) == []
+    assert any("Enrollment deadline" in n for n in zd.notes(41))
+    assert zd.notes(41)[-1].startswith("Callback script")
+    assert "ai_callback_needed" in zd.tickets[41]["tags"]
+
+
+def test_voicemail_without_a_transcript_goes_to_a_person(zd, integ):
+    zd.new_voicemail(42, 5, "")
+    out = run(zd, integ, 42)
+    assert out.action == "skipped" and "ai_callback_needed" in zd.tickets[42]["tags"]

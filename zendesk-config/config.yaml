@@ -73,6 +73,15 @@ triggers:
       - { field: current_tags, operator: includes, value: ai_intake_waiting_company }
     actions:
       - { field: notification_webhook, value: ["{webhook:Email intake agent}", '{"ticket_id": "{{ticket.id}}"}'] }
+  - title: "07-INTAKE | New voicemail or call | Email intake agent"
+    description: Same agent and rules for the phone. The agent reads the voicemail transcript, identifies the caller by phone number, and writes a callback script instead of a reply.
+    all:
+      - { field: update_type, operator: is, value: Create }
+    any:
+      - { field: via_id, operator: is, value: "44" }   # voicemail
+      - { field: via_id, operator: is, value: "45" }   # inbound call
+    actions:
+      - { field: notification_webhook, value: ["{webhook:Email intake agent}", '{"ticket_id": "{{ticket.id}}"}'] }
   - title: "10-ESC | Coverage failure | Benefits Escalation, Urgent"
     description: Harm may already be happening. A person takes over at once; the AI only gathered the facts.
     all:

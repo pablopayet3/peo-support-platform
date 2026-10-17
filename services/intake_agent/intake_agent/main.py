@@ -131,7 +131,8 @@ async def webhook(request: Request, background: BackgroundTasks):
             log.info("intake step", extra={"extra_fields": {"request_id": rid, "ticket_id": ticket_id,
                                                             "action": out.action, "detail": out.detail,
                                                             "intent": out.intent, "confidence": out.confidence,
-                                                            "band": out.band, "model": out.model}})
+                                                            "band": out.band, "model": out.model,
+                                                            "channel": out.channel, "tier": out.tier}})
         except Exception as exc:  # noqa: BLE001
             log.error("intake failed", extra={"extra_fields": {"request_id": rid, "ticket_id": ticket_id,
                                                                "error": repr(exc)}})

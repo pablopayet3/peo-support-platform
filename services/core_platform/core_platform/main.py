@@ -48,6 +48,11 @@ async def lifespan(app: FastAPI):
         with SessionLocal() as db:
             log.info("demo email overrides", extra={"extra_fields": {
                 "people": sorted(overrides), "changed": apply_demo_email_overrides(db, overrides)}})
+    phones = json.loads(s.demo_phone_overrides or "{}")
+    if phones:
+        with SessionLocal() as db:
+            log.info("demo phone overrides", extra={"extra_fields": {
+                "people": sorted(phones), "changed": apply_demo_email_overrides(db, phones, field="phone")}})
     # Configuration status at startup, never the values themselves
     log.info("startup config", extra={"extra_fields": {
         "database": s.sqlalchemy_url.split(":", 1)[0], "caller_keys": len(s.keys()),

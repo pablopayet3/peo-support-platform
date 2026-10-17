@@ -141,3 +141,12 @@ def test_billing_flags_an_invoice_paid_twice(client):
 
 def test_billing_needs_its_own_scope(client):
     assert client.get("/v1/companies/C-1001/billing", headers=READONLY).status_code == 403
+
+
+def test_demo_phone_override_lets_a_real_phone_call_in_as_a_sample_person(client):
+    from core_platform.db import SessionLocal
+    from core_platform.seed import apply_demo_email_overrides
+    with SessionLocal() as db:
+        assert apply_demo_email_overrides(db, {"P-1004": "(555) 010-9999"}, field="phone") == 1
+    r = client.get("/v1/people/lookup", params={"phone": "+1 555-010-9999"}, headers=INTEGRATION)
+    assert r.status_code == 200 and r.json()["person_id"] == "P-1004"
