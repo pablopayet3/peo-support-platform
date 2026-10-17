@@ -154,6 +154,11 @@ async def create_ticket(zd: Zendesk, call_id: str, report: dict) -> tuple[int, s
     summary = ((report.get("analysis") or {}).get("summary") or "").strip()
     transcript = _transcript(report)
     recording = (report.get("artifact") or {}).get("recordingUrl") or report.get("recordingUrl")
+    spoke = any(m.get("role") == "user" for m in ((report.get("artifact") or {}).get("messages") or report.get("messages") or []))
+    if not call.tier and not spoke and "User:" not in transcript and "Caller:" not in transcript:
+        # The caller never said anything: record it for reporting, but nobody needs to act on it
+        call.solved = True
+        call.tags.append("ai_call_no_request")
     tier = call.tier or HUMAN_GATE
     label = {AUTOMATED: "answered on the call", HUMAN_GATE: "a person follows up",
              HUMAN_LED: "transferred to a person"}[tier]

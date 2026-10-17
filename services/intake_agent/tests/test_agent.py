@@ -404,3 +404,11 @@ def test_chat_handoff_ticket_gets_the_note_and_due_date(zd, integ):
     assert out.action == "handed_off"
     note = zd.notes(60)[-1]
     assert "Enrollment deadline" in note and "Chat so far:" in note
+
+
+def test_a_silent_call_is_recorded_but_needs_no_one(live, zd):
+    live.post("/v1/voice/vapi", headers={"x-vapi-secret": "s" * 32}, json={"message": {
+        "type": "end-of-call-report", "call": {"id": "c9", "customer": {"number": "+12125550101"}},
+        "artifact": {"transcript": "AI: Thanks for calling.", "messages": [{"role": "bot", "message": "Thanks"}]}}})
+    t = zd.created[-1]
+    assert t["status"] == "solved" and "ai_call_no_request" in t["tags"]
