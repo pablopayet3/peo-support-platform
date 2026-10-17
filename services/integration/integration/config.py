@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     salesforce_timeout_s: float = 6.0
     salesforce_seed_demo: bool = False
 
+    # MCP: one key for AI assistants that connect over MCP (scope mcp:read). Keys in api_keys with the
+    # mcp:read scope work too.
+    mcp_api_key: str = ""
+
     # A switch that turns the checks off without touching Zendesk or the AI tools.
     checks_enabled: bool = True
     log_level: str = "INFO"

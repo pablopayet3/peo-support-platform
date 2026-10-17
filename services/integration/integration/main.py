@@ -13,9 +13,10 @@ from typing import Literal
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
+from starlette.routing import Route
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
-from . import context, ops, provisioning, workflows
+from . import context, mcp_server, ops, provisioning, workflows
 from .checks import CheckRequest, Contact, run_qle_check
 from .config import get_settings
 from .core_client import Conflict, CoreClient, NotFound
@@ -62,7 +63,10 @@ async def lifespan(app: FastAPI):
             log.info("salesforce demo data", extra={"extra_fields": {"accounts_created": made}})
         except Exception as exc:  # noqa: BLE001 - context only; the service starts regardless
             log.error("salesforce demo data", extra={"extra_fields": {"error": repr(exc)[:300]}})
-    yield
+    mcp_server.STATE.update(core=app.state.core, confluence=app.state.confluence)
+    mcp_server.build_app()
+    async with mcp_server.mcp.session_manager.run():
+        yield
     await app.state.salesforce.aclose()
     await app.state.confluence.aclose()
     await app.state.core.aclose()
@@ -71,6 +75,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Northwind PEO Support Integration API", version="1.0.0", lifespan=lifespan,
               description="The one API that support tools call. Fictional company, sample data.")
+# The same tools over MCP (Model Context Protocol), for any AI agent. Read-only, key with scope mcp:read.
+app.router.routes.append(Route("/mcp", endpoint=mcp_server.Endpoint(), methods=["GET", "POST", "DELETE"]))
 
 
 def core(request: Request) -> CoreClient:
