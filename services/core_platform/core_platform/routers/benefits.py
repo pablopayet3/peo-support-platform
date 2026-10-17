@@ -125,7 +125,8 @@ def create_enrollment(body: EnrollmentCreate, response: Response,
 
     n = len(e.dependents) + 1
     dep = Dependent(id=f"D-{e.id[2:]}-{n:02d}", employee_id=e.id, first_name=body.dependent.first_name,
-                    last_name=body.dependent.last_name, relationship_to_employee="child",
+                    last_name=body.dependent.last_name,
+                    relationship_to_employee="spouse" if body.event_type == "marriage" else "child",
                     date_of_birth=body.dependent.date_of_birth, status="pending_enrollment")
     en = Enrollment(employee_id=e.id, dependent_id=dep.id, event_type=body.event_type, event_date=body.event_date,
                     status="pending_carrier", approved_by=body.approved_by, source_ref=body.source_ref)

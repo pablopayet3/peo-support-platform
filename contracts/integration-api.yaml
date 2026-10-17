@@ -60,6 +60,49 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/guidance:
+    get:
+      tags: [Guidance]
+      operationId: guidance
+      summary: What to do now, read live from the Benefits Ops procedure in Confluence
+      description: >-
+        Steps for the ticket's situation, taken from the procedure page for the life event. A step with a
+        Tango walkthrough carries how_to. source says whether the steps are live, the last copy read while
+        Confluence is down, or the built-in copy. Scope employees:read (the sidebar app).
+      parameters:
+        - {name: situation, in: query, required: true, schema: {type: string, enum: [ai_intake_complete, ai_intake_incomplete, ai_fail_identity, ai_fail_no_plan, ai_fail_window]}}
+        - {name: event_type, in: query, required: false, schema: {type: string, enum: [newborn, adoption, marriage, loss_of_coverage]}}
+      responses:
+        "200":
+          description: The steps and where they came from
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [situation, source, steps]
+                properties:
+                  situation: {type: string}
+                  source: {type: string, enum: [confluence, confluence_cached, built_in]}
+                  page:
+                    type: object
+                    nullable: true
+                    properties:
+                      title: {type: string}
+                      version: {type: integer}
+                      updated_at: {type: string, format: date-time, nullable: true}
+                      url: {type: string, nullable: true}
+                  steps:
+                    type: array
+                    items:
+                      type: object
+                      required: [text]
+                      properties:
+                        text: {type: string}
+                        how_to:
+                          type: object
+                          properties: {url: {type: string}, label: {type: string}}
+        "400": {description: Unknown situation}
+        "403": {description: Missing scope employees:read}
   /v1/requests/context:
     post:
       tags: [Checks]

@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     public_base_url: str = ""
     # The Benefits Ops procedure (Confluence), linked from the sidebar's guidance.
     procedure_url: str = ""
+    # Confluence REST API: the sidebar's steps are read live from the procedure page.
+    confluence_base_url: str = ""          # https://<site>.atlassian.net
+    confluence_page_id: str = ""          # the default procedure page
+    confluence_page_ids: str = "{}"       # per life event: {"marriage": "..."}
+    confluence_email: str = ""
+    confluence_api_token: str = ""
+    confluence_timeout_s: float = 5.0
+    confluence_cache_s: float = 60.0       # an edit shows in the sidebar within a minute
 
     # Salesforce (External Client App, OAuth client credentials). Context only: never blocks a check or an approval.
     salesforce_instance_url: str = ""

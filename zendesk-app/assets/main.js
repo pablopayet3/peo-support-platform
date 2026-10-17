@@ -22,8 +22,9 @@ const RESULT = {
   ai_fail_window: ['Failed: outside enrollment window', 'bad'],
 };
 
-// Just-in-time guidance for each situation (the Spekit role). Source of truth: the Confluence procedure.
-// For the approval itself, the app also links to the Tango click-by-click guide (setting tango_url).
+// What to do now is read live from the Confluence procedure, through the integration service (/v1/guidance).
+// A step that has a Tango walkthrough carries its "Show me how" link. GUIDE is only the copy shown when
+// the integration service itself cannot be reached.
 const GUIDE = {
   ai_intake_complete: [
     'If the plan asks for proof of birth, check that the date on it matches the Event date.',
@@ -71,7 +72,7 @@ function field(id) { return `ticket.customField:custom_field_${id}`; }
 async function load() {
   const meta = await client.metadata();
   S = meta.settings;
-  const keys = ['ticket.id', 'ticket.requester.email', 'currentUser.id', field(S.field_life_event_type),
+  const keys = ['ticket.id', 'ticket.requester.email', 'ticket.requester.id', 'currentUser.id', field(S.field_life_event_type),
     field(S.field_ai_intake_result), field(S.field_event_date), field(S.field_enrollment_outcome), field(S.field_enrollment_id)];
   const d = await client.get(keys);
   if (!load.listening) {
@@ -80,11 +81,15 @@ async function load() {
       client.on(`ticket.custom_field_${id}.changed`, () => load()));
   }
   T = {
-    id: d['ticket.id'], email: d['ticket.requester.email'], me: d['currentUser.id'],
+    id: d['ticket.id'], email: d['ticket.requester.email'], me: d['currentUser.id'], phone: null,
     lifeEvent: d[field(S.field_life_event_type)], result: d[field(S.field_ai_intake_result)],
     eventDate: day(d[field(S.field_event_date)]), outcome: d[field(S.field_enrollment_outcome)], enrollmentId: d[field(S.field_enrollment_id)],
   };
   if (!T.lifeEvent) { $('<p class="muted">Not a life-event ticket.</p>'); return; }
+  if (!T.email) {
+    // A caller known only by phone number (voice tickets)
+    try { T.phone = (await client.request(`/api/v2/users/${d['ticket.requester.id']}.json`)).user.phone; } catch (e) { /* shown as identity not confirmed */ }
+  }
   await render();
 }
 
@@ -108,7 +113,7 @@ async function render(extra = '') {
   let check = null; let summary = null; let error = '';
   if (T.eventDate) {
     try {
-      check = await api('/v1/qle/check', 'POST', { requester: { email: T.email }, event_type: eventType, event_date: T.eventDate });
+      check = await api('/v1/qle/check', 'POST', { requester: T.email ? { email: T.email } : { phone: T.phone }, event_type: eventType, event_date: T.eventDate });
       if (check.employee_id) summary = await api(`/v1/employees/${check.employee_id}/summary`, 'GET');
     } catch (e) {
       error = e.status === 503 ? 'A system is not answering. Try again in a minute.' : `Could not run the checks (${e.status || 'error'}).`;
@@ -117,7 +122,17 @@ async function render(extra = '') {
   const result = (check && check.ai_intake_result) || T.result || 'ai_intake_incomplete';
   const [label, cls] = RESULT[result] || [result, 'info'];
   const dl = check && check.deadline ? countdown(check.deadline) : null;
-  const guide = (GUIDE[result] || []).map((g) => `<li>${esc(g)}</li>`).join('');
+  let g = null;
+  try { g = await api(`/v1/guidance?situation=${encodeURIComponent(result)}&event_type=${encodeURIComponent(eventType)}`, 'GET'); } catch (e) { /* built-in copy below */ }
+  const steps = g && g.steps.length ? g.steps : (GUIDE[result] || []).map((text) => ({ text }));
+  const guide = steps.map((st) => `<li>${esc(st.text)}${st.how_to ? ` <a class="how" href="${esc(st.how_to.url)}" target="_blank" rel="noopener">${esc(st.how_to.label)} ↗</a>` : ''}</li>`).join('');
+  const page = g && g.page;
+  const when = page && page.updated_at ? new Date(page.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  const source = g && g.source === 'confluence' ? `Live from Confluence · version ${esc(page.version)}${when ? `, edited ${esc(when)}` : ''}`
+    : g && g.source === 'confluence_cached' ? 'From Confluence (last copy read: Confluence is not answering)'
+    : 'Built-in copy: Confluence could not be read';
+  const procUrl = (page && page.url) || S.procedure_url;
+  const NAME = { newborn: "Baby's", adoption: "Child's", marriage: "Spouse's", loss_of_coverage: "Dependent's" }[eventType] || "Dependent's";
   const checks = check ? check.checks.map((c) => `<li><b>${c.passed ? '✓' : '✗'}</b>${esc(c.name.replace('_', ' '))}: ${esc(c.detail)}</li>`).join('') : '';
   const plan = summary && summary.medical_plan ? `${esc(summary.medical_plan.name)} · ${esc(summary.medical_plan.coverage_level.replace('_', ' '))}` : 'None';
   const approved = T.outcome === 'qle_approved' || T.enrollmentId;
@@ -136,13 +151,13 @@ async function render(extra = '') {
     ${accountBox(summary && summary.account)}
     ${checks ? `<h3>What was checked</h3><div class="card"><ul class="checks">${checks}</ul></div>` : ''}
     <h3>What to do now</h3><div class="card"><ol class="guide">${guide}</ol>
-      ${S.tango_url && result === 'ai_intake_complete' && !approved ? `<a class="more" href="${esc(S.tango_url)}" target="_blank" rel="noopener">Step-by-step guide in Tango ↗</a>` : ''}
-      ${S.procedure_url ? `<a class="more" href="${esc(S.procedure_url)}" target="_blank" rel="noopener">Full procedure in Confluence ↗</a>` : ''}</div>
+      <p class="src">${source}</p>
+      ${procUrl ? `<a class="more" href="${esc(procUrl)}" target="_blank" rel="noopener">Full procedure in Confluence ↗</a>` : ''}</div>
     ${approved ? `<div class="card"><span class="badge ok">Approved</span> Enrollment <b>${esc(T.enrollmentId || '')}</b></div>` : ''}
     ${!approved && result === 'ai_intake_complete' ? `<h3>Approve the enrollment</h3><div class="card">
-      <label for="fn">Baby's legal first name</label><input id="fn" autocomplete="off">
+      <label for="fn">${NAME} legal first name</label><input id="fn" autocomplete="off">
       <label for="ln">Last name</label><input id="ln" autocomplete="off">
-      <label for="dob">Date of birth</label><input id="dob" type="date" value="${esc(T.eventDate || '')}">
+      <label for="dob">Date of birth</label><input id="dob" type="date" value="${eventType === 'newborn' ? esc(T.eventDate || '') : ''}">
       <button class="primary" id="approve">Approve enrollment</button><div id="formErr" class="err"></div></div>` : ''}
     ${extra}`);
   const btn = document.getElementById('approve');
@@ -154,9 +169,9 @@ function confirmApprove(check, eventType) {
   const ln = document.getElementById('ln').value.trim();
   const dob = document.getElementById('dob').value;
   if (!fn || !ln || !dob) { document.getElementById('formErr').textContent = 'All three fields are required.'; return; }
-  if (dob !== T.eventDate) { document.getElementById('formErr').textContent = 'The date of birth differs from the Event date. Correct the Event date first.'; return; }
+  if (eventType === 'newborn' && dob !== T.eventDate) { document.getElementById('formErr').textContent = 'The date of birth differs from the Event date. Correct the Event date first.'; return; }
   const m = document.getElementById('modal');
-  m.innerHTML = `<div class="box"><b>Approve this enrollment?</b><p>${esc(fn)} ${esc(ln)}, born ${esc(dob)}, will be added to
+  m.innerHTML = `<div class="box"><b>Approve this enrollment?</b><p>${esc(fn)} ${esc(ln)} (date of birth ${esc(dob)}) will be added to
     ${esc(check.company_name)}'s plan as a pending enrollment with the carrier. This is recorded with your name.</p>
     <div class="actions"><button id="no">Cancel</button><button class="primary" id="yes" style="width:auto;margin:0">Approve</button></div></div>`;
   m.classList.remove('hidden');

@@ -17,3 +17,6 @@ button.primary{background:#1f73b7;color:#fff;width:100%;margin-top:10px}button:d
 .src { font-weight: 500; font-size: 10px; color: #6b7280; text-transform: none; letter-spacing: 0; margin-left: 4px; }
 a.more { display: block; margin-top: 6px; font-size: 12px; color: #1f73b7; text-decoration: none; }
 a.more:hover { text-decoration: underline; }
+a.how { font-size: 12px; color: #1f73b7; text-decoration: none; white-space: nowrap; }
+a.how:hover { text-decoration: underline; }
+p.src { margin: 6px 0 0; font-size: 11px; color: #68737d; }

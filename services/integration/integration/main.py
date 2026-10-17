@@ -20,6 +20,7 @@ from .checks import CheckRequest, Contact, run_qle_check
 from .config import get_settings
 from .core_client import Conflict, CoreClient, NotFound
 from .resilience import Unavailable
+from .confluence_client import ConfluenceClient
 from .security import Caller, require_scope
 from .salesforce_client import SalesforceClient
 from .zendesk_client import ZendeskClient, verify_signature
@@ -45,12 +46,14 @@ async def lifespan(app: FastAPI):
     app.state.core = CoreClient()
     app.state.zendesk = ZendeskClient()
     app.state.salesforce = SalesforceClient()
+    app.state.confluence = ConfluenceClient()
     s = get_settings()
     # Configuration status at startup, never the values themselves
     log.info("startup config", extra={"extra_fields": {
         "zendesk_auth": app.state.zendesk.auth.mode, "core_key_set": bool(s.core_api_key),
         "caller_keys": len(s.keys()), "webhook_secret_source": "zendesk_api" if s.zendesk_webhook_id else (
-            "variable" if s.zendesk_webhook_secret else "missing"), "field_ids": sorted(s.field_ids())}})
+            "variable" if s.zendesk_webhook_secret else "missing"), "field_ids": sorted(s.field_ids()),
+        "confluence": app.state.confluence.configured}})
     log.info("sidebar app settings", extra={"extra_fields": {
         "result": await provisioning.sync_sidebar_app(app.state.zendesk)}})
     if app.state.salesforce.configured and s.salesforce_seed_demo:
@@ -61,6 +64,7 @@ async def lifespan(app: FastAPI):
             log.error("salesforce demo data", extra={"extra_fields": {"error": repr(exc)[:300]}})
     yield
     await app.state.salesforce.aclose()
+    await app.state.confluence.aclose()
     await app.state.core.aclose()
     await app.state.zendesk.aclose()
 
@@ -173,6 +177,17 @@ async def request_context(body: RequestContextIn, request_id: str = Depends(rid)
     log.info("request context", extra={"extra_fields": {"request_id": request_id, "caller": caller.client,
                                                         "topic": body.topic, "verified": out["verified"]}})
     return out
+
+
+SITUATIONS = {"ai_intake_complete", "ai_intake_incomplete", "ai_fail_identity", "ai_fail_no_plan", "ai_fail_window"}
+
+
+@app.get("/v1/guidance", tags=["Guidance"])
+async def guidance(request: Request, situation: str, event_type: str | None = None, caller: Caller = Depends(require_scope("employees:read"))):
+    """What to do now, read live from the Benefits Ops procedure in Confluence."""
+    if situation not in SITUATIONS:
+        raise HTTPException(400, f"situation must be one of {sorted(SITUATIONS)}")
+    return await request.app.state.confluence.guidance(situation, event_type)
 
 
 @app.get("/v1/employees/{employee_id}/summary", tags=["Employees"])
