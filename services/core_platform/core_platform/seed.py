@@ -25,6 +25,20 @@ PEOPLE = [
     ("P-1005", "Sam", "Rivera", "sam.rivera@harborpine.example", "+13125550105"),     # two companies
     ("P-1006", "Grace", "Chen", "grace.chen@bluebird.example", "+13105550106"),       # former employee
 ]
+# Added later for the chat and phone channels, so each channel shows its own customers.
+# Loaded by seed_additions(), which also runs on a database seeded before they existed.
+LATER_PEOPLE = [
+    ("P-1007", "Luis", "Ortega", "luis.ortega@harborpine.example", "+13125550107"),    # phone: marriage, deductible
+    ("P-1008", "Aisha", "Rahman", "aisha.rahman@bluebird.example", "+13105550108"),    # chat: deductible, adoption, pharmacy
+]
+LATER_EMPLOYEES = [
+    ("E-1008", "P-1007", "C-1003", "employee", "active"),
+    ("E-1009", "P-1008", "C-1002", "employee", "active"),
+]
+LATER_COVERAGES = [
+    ("E-1008", "PL-03", "employee_only"),
+    ("E-1009", "PL-02", "employee_only"),
+]
 # employee id, person, company, role, status
 EMPLOYEES = [
     ("E-1001", "P-1001", "C-1001", "employee", "active"),
@@ -78,6 +92,23 @@ def normalize_phone(value: str) -> str:
     if len(digits) == 10:
         digits = "1" + digits
     return "+" + digits if digits else ""
+
+
+def seed_additions(db: Session) -> int:
+    """Add the people created after the first seed, if missing. Idempotent; returns how many were added."""
+    missing = [row for row in LATER_PEOPLE if db.get(Person, row[0]) is None]
+    if not missing or db.get(Company, "C-1001") is None:
+        return 0
+    ids = {row[0] for row in missing}
+    db.add_all(Person(id=i, first_name=f, last_name=l, email=e, phone=p) for i, f, l, e, p in missing)
+    db.flush()
+    emps = [row for row in LATER_EMPLOYEES if row[1] in ids]
+    db.add_all(Employee(id=i, person_id=p, company_id=c, role=r, status=s) for i, p, c, r, s in emps)
+    db.flush()
+    emp_ids = {row[0] for row in emps}
+    db.add_all(Coverage(employee_id=e, plan_id=p, level=lvl) for e, p, lvl in LATER_COVERAGES if e in emp_ids)
+    db.commit()
+    return len(missing)
 
 
 def apply_demo_email_overrides(db: Session, overrides: dict[str, str], field: str = "email") -> int:

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import get_settings
 from .db import Base, SessionLocal, engine
 from .routers import admin, benefits, billing, identity
-from .seed import apply_demo_email_overrides, seed
+from .seed import apply_demo_email_overrides, seed, seed_additions
 
 
 class JsonFormatter(logging.Formatter):
@@ -42,6 +42,8 @@ async def lifespan(app: FastAPI):
         with SessionLocal() as db:
             if seed(db):
                 log.info("seeded sample data")
+            if added := seed_additions(db):
+                log.info("added sample people", extra={"extra_fields": {"added": added}})
     s = get_settings()
     overrides = json.loads(s.demo_email_overrides or "{}")
     if overrides:
