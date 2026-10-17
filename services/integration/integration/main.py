@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
             log.error("salesforce demo data", extra={"extra_fields": {"error": repr(exc)[:300]}})
     mcp_server.STATE.update(core=app.state.core, confluence=app.state.confluence)
     mcp_server.build_app()
-    async with mcp_server.mcp.session_manager.run():
+    async with mcp_server.STATE["server"].session_manager.run():
         yield
     await app.state.salesforce.aclose()
     await app.state.confluence.aclose()
@@ -76,7 +76,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Northwind PEO Support Integration API", version="1.0.0", lifespan=lifespan,
               description="The one API that support tools call. Fictional company, sample data.")
 # The same tools over MCP (Model Context Protocol), for any AI agent. Read-only, key with scope mcp:read.
-app.router.routes.append(Route("/mcp", endpoint=mcp_server.Endpoint(), methods=["GET", "POST", "DELETE"]))
+for _path in mcp_server.PATHS:
+    app.router.routes.append(Route(_path, endpoint=mcp_server.Endpoint(), methods=["GET", "POST", "DELETE", "OPTIONS"]))
 
 
 def core(request: Request) -> CoreClient:

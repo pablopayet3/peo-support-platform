@@ -61,6 +61,15 @@ class Settings(BaseSettings):
     # MCP: one key for AI assistants that connect over MCP (scope mcp:read). Keys in api_keys with the
     # mcp:read scope work too.
     mcp_api_key: str = ""
+    # OAuth sign-in for AI assistants: the passcode an administrator types on the consent page
+    mcp_consent_passcode: str = ""
+
+    def mcp_issuer_url(self) -> str:
+        """This service's public URL, which is also the MCP sign-in server."""
+        import os
+        base = self.public_base_url or (f"https://{os.environ['RAILWAY_PUBLIC_DOMAIN']}"
+                                        if os.environ.get("RAILWAY_PUBLIC_DOMAIN") else "http://localhost:8712")
+        return base.rstrip("/")
 
     # A switch that turns the checks off without touching Zendesk or the AI tools.
     checks_enabled: bool = True
