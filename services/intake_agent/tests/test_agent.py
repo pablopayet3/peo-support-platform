@@ -319,3 +319,18 @@ def test_live_call_coverage_failure_is_transferred_to_a_person(live, zd):
 
 def test_voice_calls_need_the_shared_secret(live):
     assert tool(live, "c4", "lookup_caller", secret="wrong" * 8).status_code == 401
+
+
+def test_portal_signs_a_messaging_token_for_the_demo_employee():
+    import base64 as b64
+    import hashlib as hl
+    import hmac as hm
+    from intake_agent.main import PORTAL_USER, messaging_jwt
+    tok = messaging_jwt(PORTAL_USER, "app_123", "x" * 32)
+    h, c, sig = tok.split(".")
+    pad = lambda s: s + "=" * (-len(s) % 4)  # noqa: E731
+    assert json.loads(b64.urlsafe_b64decode(pad(h)))["kid"] == "app_123"
+    claims = json.loads(b64.urlsafe_b64decode(pad(c)))
+    assert claims["external_id"] == "P-1008" and claims["scope"] == "user" and claims["email_verified"] is True
+    expect = b64.urlsafe_b64encode(hm.new(b"x" * 32, f"{h}.{c}".encode(), hl.sha256).digest()).rstrip(b"=").decode()
+    assert sig == expect

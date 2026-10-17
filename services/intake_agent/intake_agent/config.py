@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     # Live phone calls: the shared secret the voice platform (Vapi) sends in X-Vapi-Secret
     vapi_secret: str = ""
 
+    # Chat demo: the Northwind employee portal page with the Zendesk messaging widget, logged in as a sample
+    # employee. The portal signs a messaging JWT (Admin Center > Messaging > authentication signing key).
+    portal_demo: bool = False
+    widget_key: str = ""
+    messaging_key_id: str = ""
+    messaging_secret: str = ""
+
     # Confidence thresholds from the case study, section 3
     high_confidence: float = 0.85
     medium_confidence: float = 0.50

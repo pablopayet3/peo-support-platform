@@ -9,6 +9,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
@@ -195,3 +196,43 @@ async def vapi(request: Request, background: BackgroundTasks):
         background.add_task(make)
         return {"ok": True}
     return {"ok": True}
+
+
+# ---- Chat demo: a Northwind employee portal page with the Zendesk messaging widget ----
+PORTAL_USER = {"external_id": "P-1008", "first_name": "Aisha", "last_name": "Rahman", "name": "Aisha Rahman",
+               "email": "aisha.rahman@bluebird.example", "company": "Bluebird Design Studio",
+               "plan": "Northwind Silver HMO", "carrier": "Meridian Care", "level": "Employee only"}
+
+
+def _b64url(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def messaging_jwt(user: dict, key_id: str, secret: str, ttl_s: int = 600) -> str:
+    """Zendesk messaging authentication: HS256, the signing key's ID as kid, scope user."""
+    header = {"alg": "HS256", "typ": "JWT", "kid": key_id}
+    claims = {"scope": "user", "external_id": user["external_id"], "name": user["name"], "email": user["email"],
+              "email_verified": True, "exp": int(time.time()) + ttl_s}
+    signing_input = _b64url(json.dumps(header, separators=(",", ":")).encode()) + "." + \
+        _b64url(json.dumps(claims, separators=(",", ":")).encode())
+    sig = hmac.new(secret.encode(), signing_input.encode(), hashlib.sha256).digest()
+    return signing_input + "." + _b64url(sig)
+
+
+@app.get("/portal", response_class=HTMLResponse, include_in_schema=False)
+def portal(request: Request, guest: bool = False):
+    s = get_settings()
+    if not s.portal_demo:
+        raise HTTPException(404)
+    page = (Path(__file__).parent / "portal.html").read_text()
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
+    demo = {"user": None if guest else PORTAL_USER}
+    return page.replace("__DEMO__", json.dumps(demo)).replace("__WIDGET_KEY__", s.widget_key).replace("__BASE__", base)
+
+
+@app.post("/portal/token", include_in_schema=False)
+def portal_token():
+    s = get_settings()
+    if not (s.portal_demo and s.messaging_key_id and len(s.messaging_secret) >= 16):
+        raise HTTPException(404)
+    return {"jwt": messaging_jwt(PORTAL_USER, s.messaging_key_id, s.messaging_secret)}

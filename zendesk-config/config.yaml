@@ -78,8 +78,15 @@ triggers:
     all:
       - { field: update_type, operator: is, value: Create }
     any:
-      - { field: via_id, operator: is, value: "44" }   # voicemail
-      - { field: via_id, operator: is, value: "45" }   # inbound call
+      - { field: via_id, operator: is, value: "33" }   # voicemail (Zendesk Talk)
+      - { field: via_id, operator: is, value: "34" }   # incoming phone call (Zendesk Talk)
+    actions:
+      - { field: notification_webhook, value: ["{webhook:Email intake agent}", '{"ticket_id": "{{ticket.id}}"}'] }
+  - title: "08-INTAKE | New chat (messaging) | Email intake agent"
+    description: Same agent and rules for chat. Replies go back into the same conversation in the web widget.
+    all:
+      - { field: update_type, operator: is, value: Create }
+      - { field: via_id, operator: is, value: "75" }   # messaging (web widget)
     actions:
       - { field: notification_webhook, value: ["{webhook:Email intake agent}", '{"ticket_id": "{{ticket.id}}"}'] }
   - title: "10-ESC | Coverage failure | Benefits Escalation, Urgent"

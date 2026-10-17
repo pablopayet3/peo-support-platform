@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Northwind PEO · Employee portal</title>
+<style>
+:root{--brand:#4b2a86;--brand-2:#6d45b8;--ink:#1f1b2e;--muted:#635d78;--line:#e6e2ef;--bg:#f6f5fa;--ok:#1f7a45;--ok-bg:#e7f5ec}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+.demo{background:#fffbe6;border-bottom:1px solid #f0e2a8;color:#6b5600;font-size:12.5px;padding:6px 24px;text-align:center}
+header{background:#fff;border-bottom:1px solid var(--line)}
+.bar{max-width:1120px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:28px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--brand);font-size:18px}
+.logo i{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:inline-block}
+nav{display:flex;gap:22px;font-size:14px;color:var(--muted)}nav b{color:var(--ink);border-bottom:2px solid var(--brand);padding-bottom:14px;margin-bottom:-15px}
+.me{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:14px}
+.av{width:32px;height:32px;border-radius:50%;background:#e9e1f7;color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:13px}
+main{max-width:1120px;margin:0 auto;padding:28px 24px 80px}
+h1{font-size:26px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 24px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.card h2{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:600}
+.big{font-size:20px;font-weight:650}.row{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
+.row:first-of-type{border-top:0}.pill{background:var(--ok-bg);color:var(--ok);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}
+.wide{grid-column:span 2}.events{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:6px}
+.ev{border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13.5px}.ev b{display:block;font-size:14px;margin-bottom:2px}
+.help{background:linear-gradient(135deg,#f3eefc,#fff);border-color:#ddd0f3}
+.muted{color:var(--muted);font-size:13.5px}
+@media (max-width:900px){.grid{grid-template-columns:1fr}.wide{grid-column:auto}.events{grid-template-columns:1fr 1fr}nav{display:none}}
+</style>
+</head>
+<body>
+<div class="demo">Demo site. Northwind PEO is a fictional company and all data here is sample data.</div>
+<header><div class="bar">
+  <div class="logo"><i></i>Northwind PEO</div>
+  <nav><b>Home</b><span>Pay</span><span>Benefits</span><span>Time off</span><span>Documents</span></nav>
+  <div class="me" id="me"></div>
+</div></header>
+<main>
+  <h1 id="hello">Welcome</h1>
+  <p class="sub" id="company"></p>
+  <div class="grid">
+    <div class="card">
+      <h2>Next paycheck</h2>
+      <div class="big">Friday, October 30</div>
+      <div class="muted">Direct deposit · paid every other Friday</div>
+    </div>
+    <div class="card">
+      <h2>Medical plan</h2>
+      <div class="big" id="plan">-</div>
+      <div class="row"><span>Carrier</span><span id="carrier">-</span></div>
+      <div class="row"><span>Coverage</span><span id="level">-</span></div>
+      <div class="row"><span>Status</span><span class="pill">Active</span></div>
+    </div>
+    <div class="card">
+      <h2>Time off</h2>
+      <div class="big">8.5 days</div>
+      <div class="muted">Vacation balance · 3 sick days</div>
+    </div>
+    <div class="card wide">
+      <h2>Had a life event?</h2>
+      <div class="muted">Some changes let you update your benefits outside open enrollment. You have 30 days from the event.</div>
+      <div class="events">
+        <div class="ev"><b>New baby</b>Add your child to your plan</div>
+        <div class="ev"><b>Adoption</b>Cover your child from placement</div>
+        <div class="ev"><b>Marriage</b>Add your spouse</div>
+        <div class="ev"><b>Lost other coverage</b>Join or change your plan</div>
+      </div>
+    </div>
+    <div class="card help">
+      <h2>Need help?</h2>
+      <div class="big">Chat with us</div>
+      <div class="muted">Ask about your plan, a life event or anything else. Use the chat button at the bottom right.</div>
+    </div>
+  </div>
+</main>
+<script>
+  const DEMO = __DEMO__;
+  const who = DEMO.user;
+  document.getElementById('hello').textContent = who ? `Welcome back, ${who.first_name}` : 'Welcome to Northwind';
+  document.getElementById('company').textContent = who ? `${who.company} · Employee portal` : 'Log in to see your pay and benefits.';
+  document.getElementById('me').innerHTML = who ? `<span>${who.name}</span><span class="av">${who.first_name[0]}${who.last_name[0]}</span>` : '<span class="muted">Not logged in</span>';
+  if (who) {
+    document.getElementById('plan').textContent = who.plan;
+    document.getElementById('carrier').textContent = who.carrier;
+    document.getElementById('level').textContent = who.level;
+  }
+</script>
+<script id="ze-snippet" src="https://static.zdassets.com/ekr/snippet.js?key=__WIDGET_KEY__"></script>
+<script>
+  // Logged in: the portal vouches for the user with a signed token, so Zendesk knows who is chatting
+  // (same as the email address on file). Not logged in: the AI agent shares no account details.
+  if (DEMO.user) {
+    zE('messenger', 'loginUser', function (callback) {
+      fetch('__BASE__/portal/token', { method: 'POST' }).then((r) => r.json()).then((d) => callback(d.jwt));
+    });
+  } else {
+    zE('messenger', 'logoutUser');
+  }
+</script>
+</body>
+</html>
