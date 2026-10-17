@@ -139,7 +139,7 @@ button.ok{{background:#4b2a86;color:#fff;border-color:#4b2a86}} .err{{color:#a23
 <p>It will <b>not</b> be able to approve enrollments, issue refunds or change anything. Every request is logged.</p>
 <input type="hidden" name="req" value="{req}"><label for="p">Administrator passcode</label>
 <input id="p" name="passcode" type="password" autocomplete="off" autofocus>{error}
-<div class="row"><button name="action" value="deny">Deny</button><button class="ok" name="action" value="approve">Approve</button></div>
+<div class="row"><button class="ok" name="action" value="approve" style="order:2">Approve</button><button name="action" value="deny" formnovalidate style="order:1">Deny</button></div>
 <div class="muted">Access expires after an hour and renews while the connector is in use. An administrator can revoke it at any time.</div>
 </form></body></html>"""
 

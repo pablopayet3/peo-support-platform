@@ -58,6 +58,8 @@ def test_an_ai_assistant_signs_in_with_oauth_and_pkce(mcp_client):
     req = parse_qs(urlparse(consent).query)["req"][0]
     page = mcp_client.get("/oauth/consent", params={"req": req})
     assert "Claude" in page.text and "read-only" in page.text
+    # Pressing Enter submits the first button in the form: it must be Approve, never Deny
+    assert page.text.index('value="approve"') < page.text.index('value="deny"')
     wrong = mcp_client.post("/oauth/consent", data={"req": req, "passcode": "nope", "action": "approve"})
     assert "not correct" in wrong.text
     ok = mcp_client.post("/oauth/consent", data={"req": req, "passcode": "let-me-in", "action": "approve"},
