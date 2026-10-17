@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     messaging_key_id: str = ""
     messaging_secret: str = ""
 
+    # Chat: the agent as first responder in Zendesk messaging, through the Conversations API
+    sunco_app_id: str = ""
+    sunco_key_id: str = ""
+    sunco_key_secret: str = ""
+    sunco_first_responder: bool = False   # set up the webhook and the switchboard order at startup
+    public_base_url: str = ""             # defaults to https://$RAILWAY_PUBLIC_DOMAIN
+
     # Confidence thresholds from the case study, section 3
     high_confidence: float = 0.85
     medium_confidence: float = 0.50

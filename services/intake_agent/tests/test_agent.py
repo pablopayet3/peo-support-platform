@@ -336,3 +336,71 @@ def test_portal_signs_a_messaging_token_for_the_demo_employee():
     assert claims["external_id"] == "P-1008" and claims["scope"] == "user" and claims["email_verified"] is True
     expect = b64.urlsafe_b64encode(hm.new(b"x" * 32, f"{h}.{c}".encode(), hl.sha256).digest()).rstrip(b"=").decode()
     assert sig == expect
+
+
+# ---- Live chat (Zendesk messaging through the Conversations API) ----
+from intake_agent import chat  # noqa: E402
+
+
+class FakeSunCo:
+    def __init__(self):
+        self.said, self.passed = [], []
+
+    def handler(self, req):
+        body = json.loads(req.content) if req.content else {}
+        if req.url.path.endswith("/messages"):
+            self.said.append(body["content"]["text"])
+        elif req.url.path.endswith("/passControl"):
+            self.passed.append(body["metadata"])
+        return httpx.Response(201, json={})
+
+
+MARIA = {"externalId": "P-1001", "profile": {"email": "maria.lopez@acmebakery.example", "givenName": "Maria"}}
+VISITOR = {"profile": {"email": "maria.lopez@acmebakery.example"}}   # typed, not logged in
+
+
+def chat_run(integ, conv, user, text, fake):
+    chat.CONVERSATIONS.pop(conv, None) if text is None else None
+    sunco = chat.SunCo(transport=httpx.MockTransport(fake.handler))
+    i = Integration(transport=httpx.MockTransport(integ.handler))
+    return asyncio.run(chat.handle(sunco, i, RuleExtractor(), conv, user, text, date(2026, 10, 15), "rid"))
+
+
+def test_chat_deductible_is_answered_in_the_chat_for_a_logged_in_employee(integ):
+    fake = FakeSunCo()
+    assert chat_run(integ, "k1", MARIA, "What's my deductible?", fake) == "answered"
+    assert "$500" in fake.said[-1] and not fake.passed
+
+
+def test_chat_never_shares_plan_details_with_a_visitor_who_is_not_logged_in(integ):
+    fake = FakeSunCo()
+    assert chat_run(integ, "k2", VISITOR, "What's my deductible?", fake) == "asked_to_verify"
+    assert "$" not in fake.said[-1] and "log in" in fake.said[-1]
+
+
+def test_chat_life_event_asks_the_date_then_hands_off_with_fields_and_tags(integ):
+    fake = FakeSunCo()
+    assert chat_run(integ, "k3", MARIA, "I had a baby and want to add her to my insurance", fake) == "asked_for_date"
+    assert chat_run(integ, "k3", MARIA, "She was born on October 14", fake) == "handed_off"
+    meta = fake.passed[-1]
+    assert "ai_tier_human_gate" in meta["dataCapture.systemField.tags"]
+    assert meta["dataCapture.ticketField.101"] == "qle_newborn" and meta["dataCapture.ticketField.103"] == "2026-10-14"
+    assert "November 5, 2026" in fake.said[-1]
+
+
+def test_chat_coverage_failure_goes_to_a_person_at_once(integ):
+    fake = FakeSunCo()
+    assert chat_run(integ, "k4", MARIA, "The pharmacy turned me away, they say I'm not covered", fake) == "escalated"
+    assert "ai_coverage_failure" in fake.passed[-1]["dataCapture.systemField.tags"]
+
+
+def test_chat_handoff_ticket_gets_the_note_and_due_date(zd, integ):
+    fake = FakeSunCo()
+    chat_run(integ, "k5", MARIA, "I had a baby on October 14 and want to add her to my plan", fake)
+    zd.tickets[60] = {"id": 60, "requester_id": 1, "tags": ["ai_intake_done"], "custom_fields": [],
+                      "via": {"channel": "native_messaging"}}
+    zd.comments[60] = []
+    out = run(zd, integ, 60)
+    assert out.action == "handed_off"
+    note = zd.notes(60)[-1]
+    assert "Enrollment deadline" in note and "Chat so far:" in note

@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from . import agent, console, voice
+from . import agent, chat, console, voice
 from .clients import Integration, Zendesk
 from .config import get_settings
 from .llm import FallbackExtractor, GeminiExtractor, RuleExtractor
@@ -55,7 +55,19 @@ async def lifespan(app: FastAPI):
                                                                else "set, with surrounding spaces")}})
     if app.state.extractor.primary is not None:
         asyncio.create_task(probe_model(app.state.extractor.primary))
+    app.state.sunco = chat.SunCo()
+    if app.state.sunco.configured and s.sunco_first_responder:
+        asyncio.create_task(setup_chat(app.state.sunco))
     yield
+
+
+async def setup_chat(sunco) -> None:
+    import os
+    base = get_settings().public_base_url or f"https://{os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')}"
+    try:
+        log.info("chat setup", extra={"extra_fields": {"result": await sunco.setup(base)}})
+    except Exception as exc:  # noqa: BLE001 - chat stays with Zendesk's own flow until this works
+        log.error("chat setup", extra={"extra_fields": {"error": repr(exc)[:400]}})
 
 
 async def probe_model(model) -> None:
@@ -238,3 +250,39 @@ def portal_token():
     if not (s.portal_demo and s.messaging_key_id and len(s.messaging_secret) >= 16):
         raise HTTPException(404)
     return {"jwt": messaging_jwt(PORTAL_USER, s.messaging_key_id, s.messaging_secret)}
+
+
+@app.post("/v1/chat/sunco", include_in_schema=False)
+async def chat_webhook(request: Request, background: BackgroundTasks):
+    """Zendesk messaging (Conversations API) webhook: one call per message in a conversation the AI owns."""
+    sunco = request.app.state.sunco
+    got = request.headers.get("x-api-key") or ""
+    if not (sunco.webhook_secret and hmac.compare_digest(got, sunco.webhook_secret)):
+        raise HTTPException(401, "invalid secret")
+    body = await request.json()
+    rid = request.headers.get("x-request-id") or uuid.uuid4().hex
+    for ev in body.get("events", []):
+        if ev.get("type") != "conversation:message":
+            continue
+        p = ev.get("payload") or {}
+        msg = p.get("message") or {}
+        author = msg.get("author") or {}
+        content = msg.get("content") or {}
+        if author.get("type") != "user" or content.get("type") != "text":
+            continue
+        conv_id = (p.get("conversation") or {}).get("id")
+
+        async def run(conv_id=conv_id, user=author.get("user") or {}, text=content.get("text", "")):
+            start = time.perf_counter()
+            try:
+                today = datetime.now(ZoneInfo("America/New_York")).date()
+                action = await chat.handle(sunco, request.app.state.integ, request.app.state.extractor, conv_id,
+                                           user, text, today, rid)
+                tier = {"answered": "ai_tier_automated", "escalated": "ai_tier_human_led",
+                        "handed_off": "ai_tier_human_gate"}.get(action, "")
+                console.record(0, agent.Outcome(action, "chat", intent="chat", band="", model="chat", tier=tier,
+                                                channel="chat"), (time.perf_counter() - start) * 1000, rid)
+            except Exception as exc:  # noqa: BLE001
+                log.error("chat failed", extra={"extra_fields": {"request_id": rid, "error": repr(exc)[:300]}})
+        background.add_task(run)
+    return {"ok": True}

@@ -113,6 +113,12 @@ async def process(ticket_id: int, zd: Zendesk, integ: Integration, extractor: Ex
     s = get_settings()
     ticket = await zd.ticket(ticket_id)
     tags = set(ticket.get("tags", []))
+    if channel_of(ticket) == "messaging":
+        # Chats are handled live (chat.py). The ticket appears when the AI hands the chat to a person.
+        from . import chat
+        if await chat.finish_handoff(zd, ticket_id, await zd.user(ticket["requester_id"])):
+            return Outcome("handed_off", "chat handoff note added", channel="messaging")
+        return Outcome("ignored", "chat ticket", channel="messaging")
     if DONE in tags or SKIPPED in tags or zd.field(ticket, "ai_intake_result"):
         return Outcome("ignored", "intake already finished")
 

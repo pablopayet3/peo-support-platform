@@ -161,7 +161,9 @@ class RuleExtractor:
             confidence = 0.9  # a specific phrase, not just a topic word
             if coverage_failure and intent not in ("life_event", "benefits_question"):
                 intent = "benefits_question"
-        d = parse_date(conversation, today)
+        # The customer's own words, latest first: Northwind's questions contain example dates
+        d = next((x for part in reversed(conversation.split("\n---\n")) if not part.startswith("Northwind:")
+                  for x in [parse_date(part, today)] if x), None)
         name = re.search(r"\b(?:named|name is|called)\s+([A-Z][a-z]+)(?:\s+([A-Z][a-z]+))?", conversation)
         return Extraction(
             intent=intent, is_life_event=bool(event_type), event_type=event_type, confidence=confidence,
