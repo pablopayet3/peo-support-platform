@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./core.db"
     # JSON: {"<key>": {"client": "integration-service", "scopes": ["identity:read", ...]}}
     api_keys: str = Field(default="{}")
+    # Extra scopes per client name, kept apart from the secret keys so permissions can change without
+    # touching a key. JSON: {"integration-service": ["billing:read"]}
+    client_scopes: str = Field(default="{}")
     # Keys shorter than this are ignored, so an empty or unresolved secret can never match.
     min_key_length: int = 32
     admin_user: str = "admin"
@@ -29,6 +32,9 @@ class Settings(BaseSettings):
     def keys(self) -> dict[str, dict]:
         keys = json.loads(self.api_keys or "{}")
         return {k: v for k, v in keys.items() if len(k) >= self.min_key_length and "${{" not in k}
+
+    def extra_scopes(self, client: str) -> list[str]:
+        return list(json.loads(self.client_scopes or "{}").get(client, []))
 
     @property
     def sqlalchemy_url(self) -> str:

@@ -5,9 +5,10 @@ os.environ["CORE_DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["CORE_FROZEN_TODAY"] = "2026-10-12"
 os.environ["CORE_ADMIN_PASSWORD"] = "test-admin"
 os.environ["CORE_MIN_KEY_LENGTH"] = "8"
+os.environ["CORE_CLIENT_SCOPES"] = json.dumps({"integration-service": ["billing:read"]})
 os.environ["CORE_API_KEYS"] = json.dumps({
     "key-integration": {"client": "integration-service",
-                        "scopes": ["identity:read", "benefits:read", "enrollments:write", "billing:read"]},
+                        "scopes": ["identity:read", "benefits:read", "enrollments:write"]},
     "key-readonly": {"client": "reporting", "scopes": ["benefits:read"]},
 })
 

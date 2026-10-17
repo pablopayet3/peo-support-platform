@@ -23,7 +23,9 @@ class Caller:
 def _match_key(presented: str) -> Caller | None:
     for key, info in get_settings().keys().items():
         if hmac.compare_digest(presented.encode(), key.encode()):
-            return Caller(client=info.get("client", "unknown"), scopes=frozenset(info.get("scopes", [])))
+            client = info.get("client", "unknown")
+            scopes = set(info.get("scopes", [])) | set(get_settings().extra_scopes(client))
+            return Caller(client=client, scopes=frozenset(scopes))
     return None
 
 
