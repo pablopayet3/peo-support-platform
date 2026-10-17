@@ -10,6 +10,7 @@ identity provider (Okta, Microsoft Entra ID) and tokens kept in a database; the 
 """
 import hmac
 import html
+import logging
 import secrets
 import time
 
@@ -21,6 +22,7 @@ from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from .config import get_settings
 
+log = logging.getLogger("integration")
 SCOPE = "mcp:read"
 ACCESS_TTL, REFRESH_TTL, CODE_TTL, CONSENT_TTL = 3600, 30 * 86400, 300, 600
 
@@ -155,13 +157,16 @@ def consent_route(provider: NorthwindAuth):
             if req not in provider.pending:
                 return HTMLResponse("This sign-in request has expired. Start again from your AI assistant.", 400)
             if form.get("action") == "deny":
+                log.info("mcp consent", extra={"extra_fields": {"result": "denied"}})
                 return RedirectResponse(provider.deny(req), 302)
             passcode = get_settings().mcp_consent_passcode
             if passcode and hmac.compare_digest(str(form.get("passcode", "")), passcode):
                 try:
+                    log.info("mcp consent", extra={"extra_fields": {"result": "approved"}})
                     return RedirectResponse(provider.approve(req, "northwind-admin"), 302)
                 except KeyError:
                     return HTMLResponse("This sign-in request has expired. Start again from your AI assistant.", 400)
+            log.info("mcp consent", extra={"extra_fields": {"result": "wrong passcode"}})
             error = '<div class="err">That passcode is not correct.</div>'
         pending = provider.pending.get(req)
         if pending is None:
