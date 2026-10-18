@@ -140,3 +140,4 @@ def _no_talk_wait(monkeypatch):
     from intake_agent import voice
     monkeypatch.setattr(voice, "TALK_WAITS", 1)
     monkeypatch.setattr(voice, "TALK_WAIT_S", 0)
+    monkeypatch.setattr(voice, "ADOPT_DELAY_S", 0)

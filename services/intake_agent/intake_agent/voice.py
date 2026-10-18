@@ -47,7 +47,7 @@ class Call:
 
 
 CALLS: dict[str, Call] = {}
-TALK_WAITS, TALK_WAIT_S = 7, 10   # look for the transferred call's ticket for about a minute
+TALK_WAITS, TALK_WAIT_S, ADOPT_DELAY_S = 7, 10, 30   # look for the transferred call's ticket for about a minute
 
 
 def _call(call_id: str, phone: str) -> Call:
@@ -194,6 +194,9 @@ async def create_ticket(zd: Zendesk, call_id: str, report: dict) -> tuple[int, s
                 break
             await asyncio.sleep(TALK_WAIT_S)
         if talk:
+            # Zendesk saves the call's ticket from the specialist's browser when the call ends. Wait for that save,
+            # so it cannot overwrite the routing the triggers are about to set.
+            await asyncio.sleep(ADOPT_DELAY_S)
             note = [f"Live phone call with the AI support agent, transferred to a person.",
                     "Handling: human led.", summary or "-", *call.facts, *call.coverage_facts, *also, *tail]
             await zd.adopt(talk, subject="Phone call: coverage problem (transferred)", note="\n".join(note),
