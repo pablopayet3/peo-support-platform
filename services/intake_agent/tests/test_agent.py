@@ -327,6 +327,25 @@ def test_live_call_coverage_failure_is_transferred_to_a_person(live, zd):
     assert {"ai_coverage_failure", "ai_tier_human_led"} <= set(zd.created[-1]["tags"])
 
 
+def test_a_transferred_call_gets_the_ai_context_on_the_ticket_the_specialist_answered(live, zd):
+    adopted = {}
+
+    async def transferred_call(line, since):
+        return 777
+
+    async def adopt(tid, **kw):
+        adopted[tid] = kw
+
+    from intake_agent import main
+    main.app.state.zd.transferred_call, main.app.state.zd.adopt = transferred_call, adopt
+    before = len(zd.created)
+    tool(live, "c6", "report_coverage_problem", {"description": "turned away at the pharmacy"})
+    end(live, "c6")
+    assert len(zd.created) == before          # no second ticket: the call's own ticket carries the context
+    assert {"ai_coverage_failure", "ai_tier_human_led", "ai_transferred"} <= set(adopted[777]["tags"])
+    assert "turned away at the pharmacy" in adopted[777]["note"]
+
+
 def test_voice_calls_need_the_shared_secret(live):
     assert tool(live, "c4", "lookup_caller", secret="wrong" * 8).status_code == 401
     body = {"message": {"type": "status-update", "call": {"id": "c5"}}}

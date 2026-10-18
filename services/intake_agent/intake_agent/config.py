@@ -32,6 +32,8 @@ class Settings(BaseSettings):
 
     # Live phone calls: the shared secret the voice platform (Vapi) sends in X-Vapi-Secret
     vapi_secret: str = ""
+    # The voice AI's phone number. Zendesk Talk shows it as the caller when the AI transfers a call.
+    voice_line: str = "+18604193002"
 
     # Chat demo: the Northwind employee portal page with the Zendesk messaging widget, logged in as a sample
     # employee. The portal signs a messaging JWT (Admin Center > Messaging > authentication signing key).

@@ -133,3 +133,10 @@ def _no_waits(monkeypatch):
     from intake_agent import agent
     monkeypatch.setattr(agent, "TRANSCRIPT_WAITS", 0)
     monkeypatch.setattr(agent, "TRANSCRIPT_WAIT_S", 0)
+
+
+@pytest.fixture(autouse=True)
+def _no_talk_wait(monkeypatch):
+    from intake_agent import voice
+    monkeypatch.setattr(voice, "TALK_WAITS", 1)
+    monkeypatch.setattr(voice, "TALK_WAIT_S", 0)

@@ -1,5 +1,6 @@
 """Small clients for Zendesk and the integration service. Both use time limits and retries."""
 import asyncio
+import calendar
 import time
 
 import httpx
@@ -102,6 +103,36 @@ class Zendesk:
         if status:
             body["status"] = status
         return (await self._ok("POST", "/api/v2/tickets.json", json={"ticket": body}))["ticket"]["id"]
+
+    async def transferred_call(self, line: str, since: float) -> int | None:
+        """The ticket Zendesk Talk opened when the voice AI transferred a call to a person.
+
+        Talk sees the voice AI's number as the caller. The most recent open voice ticket from that number,
+        created after the AI call started, is the one the specialist answered."""
+        digits = "".join(ch for ch in line if ch.isdigit())[-10:]
+        if not digits:
+            return None
+        data = await self._ok("GET", "/api/v2/tickets.json",
+                              params={"sort_by": "created_at", "sort_order": "desc", "per_page": 15})
+        for t in data.get("tickets", []):
+            created = calendar.timegm(time.strptime(t["created_at"], "%Y-%m-%dT%H:%M:%SZ"))
+            if created < since - 60:
+                break
+            src = ((t.get("via") or {}).get("source") or {}).get("from") or {}
+            caller = "".join(ch for ch in str(src.get("phone") or src.get("formatted_phone") or t.get("subject") or "")
+                             if ch.isdigit())
+            if (t.get("via") or {}).get("channel") == "voice" and t.get("status") not in ("solved", "closed") \
+                    and digits in caller:
+                return t["id"]
+        return None
+
+    async def adopt(self, tid: int, *, subject: str, note: str, requester_id: int | None, tags: list[str]) -> None:
+        """Give a transferred call's ticket the AI's context: the real caller, the facts and the tags."""
+        body: dict = {"subject": subject, "comment": {"body": note, "public": False}}
+        if requester_id:
+            body["requester_id"] = requester_id
+        await self._ok("PUT", f"/api/v2/tickets/{tid}.json", json={"ticket": body})
+        await self.add_tags(tid, tags)
 
     async def add_tags(self, tid: int, tags: list[str]) -> None:
         await self._ok("PUT", f"/api/v2/tickets/{tid}/tags.json", json={"tags": tags})

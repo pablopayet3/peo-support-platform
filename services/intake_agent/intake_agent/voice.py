@@ -12,6 +12,7 @@ Each tool returns `say`: the exact words for the voice to read, from reviewed te
 call chooses which tool to use; it never writes the wording about benefits. When the call ends, one
 Zendesk ticket is created with the transcript, the tier and the facts, so the usual triggers route it.
 """
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ from datetime import date
 
 from . import replies
 from .clients import Integration, Zendesk
+from .config import get_settings
 from .llm import valid_event_date
 
 log = logging.getLogger("intake_agent")
@@ -45,6 +47,7 @@ class Call:
 
 
 CALLS: dict[str, Call] = {}
+TALK_WAITS, TALK_WAIT_S = 7, 10   # look for the transferred call's ticket for about a minute
 
 
 def _call(call_id: str, phone: str) -> Call:
@@ -179,8 +182,27 @@ async def create_ticket(zd: Zendesk, call_id: str, report: dict) -> tuple[int, s
 
     made: list[tuple[int, str, str]] = []
     if call.coverage_facts:
-        tid = await make("Phone call: coverage problem", HUMAN_LED, "benefits_question",
-                         call.coverage_facts + also, ["ai_coverage_failure"])
+        # The call was transferred: Zendesk Talk opened a ticket for the specialist who answered. Give that
+        # ticket the AI's context, so the specialist works on one ticket with the recording and the facts.
+        talk = None
+        for _ in range(TALK_WAITS):   # Zendesk opens the call's ticket when the specialist answers
+            try:
+                talk = await zd.transferred_call(get_settings().voice_line, call.started)
+            except Exception:  # noqa: BLE001 - finding the call ticket is a bonus; a new ticket still works
+                break
+            if talk:
+                break
+            await asyncio.sleep(TALK_WAIT_S)
+        if talk:
+            note = [f"Live phone call with the AI support agent, transferred to a person.",
+                    "Handling: human led.", summary or "-", *call.facts, *call.coverage_facts, *also, *tail]
+            await zd.adopt(talk, subject="Phone call: coverage problem (transferred)", note="\n".join(note),
+                           requester_id=requester_id,
+                           tags=[*base, HUMAN_LED, "ai_intent_benefits_question", "ai_coverage_failure", "ai_transferred"])
+            tid = talk
+        else:
+            tid = await make("Phone call: coverage problem", HUMAN_LED, "benefits_question",
+                             call.coverage_facts + also, ["ai_coverage_failure"])
         made.append((tid, HUMAN_LED, "benefits_question"))
         also = []
     if call.fields:
