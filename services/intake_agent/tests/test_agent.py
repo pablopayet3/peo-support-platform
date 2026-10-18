@@ -67,6 +67,16 @@ def test_medium_confidence_asks_one_question(zd, integ):
     assert run(zd, integ, 3, Scripted(yes)).action == "handed_off"
 
 
+def test_a_vague_life_event_gets_one_question_about_which_event(zd, integ):
+    zd.new_ticket(4, 1, "We had some big news at home last week and I need to update my insurance.")
+    vague = Extraction(is_life_event=True, event_type=None, confidence=0.6)
+    assert run(zd, integ, 4, Scripted(vague)).action == "asked_to_confirm"
+    assert "a birth, an adoption, a marriage" in zd.public_replies(4)[-1]
+    zd.customer_says(4, "We had a baby, born October 6")
+    answer = Extraction(is_life_event=True, event_type="newborn", confidence=0.95, event_date="2026-10-06")
+    assert run(zd, integ, 4, Scripted(answer)).action == "handed_off"
+
+
 def test_no_confirmation_means_a_person_takes_over(zd, integ):
     zd.new_ticket(4, 1, "Something changed")
     medium = Extraction(is_life_event=True, event_type="newborn", confidence=0.6)

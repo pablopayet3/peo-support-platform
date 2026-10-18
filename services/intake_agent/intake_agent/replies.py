@@ -9,6 +9,9 @@ EVENT_WORDS = {"newborn": "your new baby", "adoption": "your adopted child", "ma
 def clarify(event_type: str | None) -> str:
     if event_type == "newborn":
         return "Thanks for reaching out. Are you looking to add your new baby to your health plan? Just reply yes and we'll get started."
+    if event_type is None:
+        return ("Thanks for reaching out. To point you in the right direction: is this about a birth, an adoption, "
+                "a marriage, or losing other coverage? Just reply with which one and the date, and we'll get started.")
     return "Thanks for reaching out. Are you looking to update your benefits because of a life event? Just reply yes and we'll get started."
 
 

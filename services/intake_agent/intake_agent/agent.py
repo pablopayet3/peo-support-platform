@@ -199,11 +199,13 @@ async def process(ticket_id: int, zd: Zendesk, integ: Integration, extractor: Ex
         if WAIT_DATE in tags or WAIT_COMPANY in tags:
             pass  # already established in an earlier message; this one answers our question
         elif CONFIRMING in tags:
-            if not ex.confirms:
+            # A yes, or an answer that names the life event, confirms it
+            if not ex.confirms and not (ex.intent == "life_event" and ex.event_type):
                 return await skip("the customer did not confirm")
-        elif ex.intent != "life_event" or ex.event_type is None or ex.confidence < s.medium_confidence:
+        elif ex.intent != "life_event" or ex.confidence < s.medium_confidence:
             return await skip("not a life-event request" if ex.intent != "life_event" else f"low confidence ({ex.confidence:.2f})")
-        elif ex.confidence < s.high_confidence:
+        elif ex.confidence < s.high_confidence or ex.event_type is None:
+            # Probably a life event, but not sure enough, or not sure which one: ask one question first
             await zd.update(ticket_id, comment=replies.clarify(ex.event_type), public=True)
             await zd.add_tags(ticket_id, [CONFIRMING])
             return Outcome("asked_to_confirm", f"confidence {ex.confidence:.2f}")
