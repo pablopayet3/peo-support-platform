@@ -11,6 +11,8 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, Field, model_validator
 
+from .tracing import traced
+
 EventType = Literal["newborn", "adoption", "marriage", "loss_of_coverage"]
 # The intents a triage model sorts every incoming request into (only life_event is worked by this agent)
 Intent = Literal["life_event", "payroll", "taxes", "benefits_question", "account_access", "billing", "other"]
@@ -81,6 +83,7 @@ class GeminiExtractor:
         self._types = types
         self._model = model
 
+    @traced("gemini classify", run_type="llm", keep=("conversation", "today"))
     async def extract(self, conversation: str, today: date) -> Extraction:
         cfg = self._types.GenerateContentConfig(
             system_instruction=SYSTEM, temperature=0, response_mime_type="application/json",
@@ -187,6 +190,7 @@ class FallbackExtractor:
         self.last_used = self.name  # which one answered the latest request (shown in the console)
         self.retry_wait_s = 2.0
 
+    @traced("classify (model, rules fallback)", keep=("conversation", "today"))
     async def extract(self, conversation: str, today: date) -> Extraction:
         if self.primary is not None:
             for attempt in range(2):   # one retry: model APIs return brief 503 and 429 errors under load

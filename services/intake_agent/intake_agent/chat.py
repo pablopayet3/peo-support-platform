@@ -25,6 +25,7 @@ from .clients import Integration, Zendesk
 from .config import get_settings
 from .llm import Extractor, valid_event_date
 from .redact import redact
+from .tracing import traced
 
 log = logging.getLogger("intake_agent")
 
@@ -124,6 +125,7 @@ def chat_reply(text: str) -> str:
                      "Anything else I can help with?"))
 
 
+@traced("chat message", keep=("conv_id", "rid", "today"))
 async def handle(sunco: SunCo, integ: Integration, extractor: Extractor, conv_id: str, user: dict, text: str,
                  today: date, rid: str) -> str:
     """One customer message. Returns what was done, for the console."""

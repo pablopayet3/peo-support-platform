@@ -15,6 +15,7 @@ from .clients import Integration, Zendesk
 from .config import get_settings
 from .llm import Extractor, valid_event_date
 from .redact import redact
+from .tracing import traced
 
 log = logging.getLogger("intake_agent")
 
@@ -132,6 +133,7 @@ def _conversation(comments: list[dict], requester_id: int) -> tuple[str, str]:
 TRANSCRIPT_WAITS, TRANSCRIPT_WAIT_S = 9, 10   # up to 90 seconds
 
 
+@traced("ticket intake", keep=("ticket_id", "request_id", "today"))
 async def process(ticket_id: int, zd: Zendesk, integ: Integration, extractor: Extractor, today: date,
                   request_id: str) -> Outcome:
     s = get_settings()
